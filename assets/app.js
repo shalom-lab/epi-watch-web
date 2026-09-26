@@ -17,6 +17,14 @@ const TAG_META = {
 
 const el = (id) => document.getElementById(id);
 
+function asList(v) {
+  if (Array.isArray(v)) return v.filter((x) => x != null && String(x).length);
+  if (typeof v === "string" && v.trim()) return [v.trim()];
+  return [];
+}
+
+
+
 const state = {
   articles: [],
   selectedTags: new Set(),
@@ -119,10 +127,10 @@ function normalizeArticle(a) {
 
   const lp = a.learnPoints;
   if (Array.isArray(lp)) {
-    const cjk = lp.some((x) => /[\u4e00-\u9fff]/.test(x));
-    out.learnPoints = cjk ? { zh: lp, en: [] } : { zh: [], en: lp };
+    const cjk = lp.some((x) => /[\u4e00-\u9fff]/.test(String(x)));
+    out.learnPoints = cjk ? { zh: asList(lp), en: [] } : { zh: [], en: asList(lp) };
   } else if (lp && typeof lp === "object") {
-    out.learnPoints = { zh: lp.zh || [], en: lp.en || [] };
+    out.learnPoints = { zh: asList(lp.zh), en: asList(lp.en) };
   } else {
     out.learnPoints = { zh: [], en: [] };
   }
@@ -207,8 +215,8 @@ function filteredArticles() {
         b.en?.content,
         b.en?.methods,
         b.en?.conclusion,
-        ...(a.learnPoints?.zh || []),
-        ...(a.learnPoints?.en || []),
+        ...asList(a.learnPoints?.zh),
+        ...asList(a.learnPoints?.en),
       ]
         .filter(Boolean)
         .join(" ")
@@ -259,8 +267,8 @@ function highlightHtml(h) {
 }
 
 function learnPointsHtml(lp) {
-  const en = lp?.en || [];
-  const zh = lp?.zh || [];
+  const en = asList(lp?.en);
+  const zh = asList(lp?.zh);
   if (!en.length && !zh.length) return "";
   let html = `<div class="section"><div class="section-label">可学习点</div><div class="bilingual">`;
   if (en.length) {
