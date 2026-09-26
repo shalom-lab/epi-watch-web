@@ -18,24 +18,52 @@ const TAG_META = {
 const el = (id) => document.getElementById(id);
 
 function asList(v) {
-  if (Array.isArray(v)) return v.filter((x) => x != null && String(x).length);
+  if (Array.isArray(v)) return v.filter((x) => x != null && String(x).trim().length);
   if (typeof v === "string" && v.trim()) return [v.trim()];
+  if (v && typeof v === "object") {
+    return [...asList(v.zh), ...asList(v.en)];
+  }
   return [];
 }
 
-
+function asText(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "object") {
+    // legacy bilingual brief object
+    if (v.zh || v.en) {
+      const zh = v.zh;
+      const en = v.en;
+      if (typeof zh === "string" && zh.trim()) return zh.trim();
+      if (typeof en === "string" && en.trim()) return en.trim();
+      if (zh && typeof zh === "object") {
+        const parts = [zh.content, zh.methods, zh.conclusion].filter(Boolean);
+        if (parts.length) return parts.join(" ");
+      }
+      if (en && typeof en === "object") {
+        const parts = [en.content, en.methods, en.conclusion].filter(Boolean);
+        if (parts.length) return parts.join(" ");
+      }
+    }
+    if (v.content || v.methods || v.conclusion) {
+      return [v.content, v.methods, v.conclusion].filter(Boolean).join(" ");
+    }
+  }
+  return "";
+}
 
 const state = {
   articles: [],
   selectedTags: new Set(),
   loaded: false,
-  collapsed: new Set(), // ids collapsed; default = expanded
+  collapsed: new Set(),
 };
 
 function readCreds() {
-  const repo = (localStorage.getItem(LS_REPO) || "").trim();
-  const token = (localStorage.getItem(LS_TOKEN) || "").trim();
-  return { repo, token };
+  return {
+    repo: (localStorage.getItem(LS_REPO) || "").trim(),
+    token: (localStorage.getItem(LS_TOKEN) || "").trim(),
+  };
 }
 function saveCreds(repo, token) {
   localStorage.setItem(LS_REPO, repo.trim());
@@ -87,62 +115,26 @@ async function fetchRepoFile(path) {
   if (res.status === 401 || res.status === 403) {
     throw new Error("Token 无效或权限不足（需要能读该私有仓的 Contents）。");
   }
-  if (res.status === 404) {
-    throw new Error(`找不到 ${path}，请确认仓库与路径。`);
-  }
+  if (res.status === 404) throw new Error(`找不到 ${path}，请确认仓库与路径。`);
   if (!res.ok) throw new Error(`GitHub API ${res.status}`);
   return res.json();
 }
 
-/** Normalize legacy flat brief / highlight / learnPoints → bilingual */
 function normalizeArticle(a) {
-  const out = { ...a };
-  const b = a.brief || {};
-  if (b.zh || b.en) {
-    out.brief = {
-      zh: { content: b.zh?.content || "", methods: b.zh?.methods || "", conclusion: b.zh?.conclusion || "" },
-      en: { content: b.en?.content || "", methods: b.en?.methods || "", conclusion: b.en?.conclusion || "" },
-    };
-  } else {
-    const flat = {
-      content: b.content || "",
-      methods: b.methods || "",
-      conclusion: b.conclusion || "",
-    };
-    const sample = flat.content + flat.methods + flat.conclusion;
-    const cjk = /[\u4e00-\u9fff]/.test(sample);
-    out.brief = cjk
-      ? { zh: flat, en: { content: "", methods: "", conclusion: "" } }
-      : { zh: { content: "", methods: "", conclusion: "" }, en: flat };
-  }
-
-  const h = a.highlight;
-  if (typeof h === "string") {
-    out.highlight = /[\u4e00-\u9fff]/.test(h) ? { zh: h, en: "" } : { zh: "", en: h };
-  } else if (h && typeof h === "object") {
-    out.highlight = { zh: h.zh || "", en: h.en || "" };
-  } else {
-    out.highlight = { zh: "", en: "" };
-  }
-
-  const lp = a.learnPoints;
-  if (Array.isArray(lp)) {
-    const cjk = lp.some((x) => /[\u4e00-\u9fff]/.test(String(x)));
-    out.learnPoints = cjk ? { zh: asList(lp), en: [] } : { zh: [], en: asList(lp) };
-  } else if (lp && typeof lp === "object") {
-    out.learnPoints = { zh: asList(lp.zh), en: asList(lp.en) };
-  } else {
-    out.learnPoints = { zh: [], en: [] };
-  }
-  return out;
+  return {
+    ...a,
+    brief: asText(a.brief),
+    highlight: asText(a.highlight),
+    learnPoints: asList(a.learnPoints),
+    reason: asText(a.reason) || a.reason || "",
+  };
 }
 
 function journalOptions(articles) {
   const map = new Map();
   for (const a of articles) {
     const id = a.journalId || "unknown";
-    const name = a.journalName || id;
-    if (!map.has(id)) map.set(id, name);
+    if (!map.has(id)) map.set(id, a.journalName || id);
   }
   return [...map.entries()].sort((x, y) => x[1].localeCompare(y[1], "zh"));
 }
@@ -164,8 +156,7 @@ function buildTagBar(articles) {
     renderList();
   });
   bar.appendChild(clear);
-
-  for (const id of [...counts.keys()].sort((a, b) => a.localeCompare(b))) {
+  for (const id of [...counts.keys()].sort()) {
     const meta = TAG_META[id] || { label: id, color: "#e2e8f0", ink: "#334155" };
     const btn = document.createElement("button");
     btn.type = "button";
@@ -201,23 +192,7 @@ function filteredArticles() {
   }
   if (q) {
     list = list.filter((a) => {
-      const b = a.brief || { zh: {}, en: {} };
-      const blob = [
-        a.title,
-        a.highlight?.zh,
-        a.highlight?.en,
-        a.doi,
-        a.id,
-        a.reason,
-        b.zh?.content,
-        b.zh?.methods,
-        b.zh?.conclusion,
-        b.en?.content,
-        b.en?.methods,
-        b.en?.conclusion,
-        ...asList(a.learnPoints?.zh),
-        ...asList(a.learnPoints?.en),
-      ]
+      const blob = [a.title, a.highlight, a.brief, a.doi, a.id, a.reason, ...asList(a.learnPoints)]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -244,43 +219,6 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
-function bilingualBlock(enText, zhText) {
-  const en = (enText || "").trim();
-  const zh = (zhText || "").trim();
-  if (!en && !zh) return `<div class="lang-block"><p>—</p></div>`;
-  let html = `<div class="bilingual">`;
-  if (en) {
-    html += `<div class="lang-block en"><div class="lang-tag">EN</div><p>${esc(en)}</p></div>`;
-  }
-  if (zh) {
-    html += `<div class="lang-block zh"><div class="lang-tag">中文</div><p>${esc(zh)}</p></div>`;
-  }
-  html += `</div>`;
-  return html;
-}
-
-function highlightHtml(h) {
-  const en = (h?.en || "").trim();
-  const zh = (h?.zh || "").trim();
-  if (!en && !zh) return "";
-  return `<div class="highlight"><div class="lang-pair">${bilingualBlock(en, zh)}</div></div>`;
-}
-
-function learnPointsHtml(lp) {
-  const en = asList(lp?.en);
-  const zh = asList(lp?.zh);
-  if (!en.length && !zh.length) return "";
-  let html = `<div class="section"><div class="section-label">可学习点</div><div class="bilingual">`;
-  if (en.length) {
-    html += `<div class="lang-block en"><div class="lang-tag">EN</div><ul>${en.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>`;
-  }
-  if (zh.length) {
-    html += `<div class="lang-block zh"><div class="lang-tag">中文</div><ul>${zh.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>`;
-  }
-  html += `</div></div>`;
-  return html;
-}
-
 function cardHtml(a) {
   const score = a.relevanceScore ?? 0;
   const scoreClass = score >= 0.55 ? "score" : "score mid";
@@ -291,7 +229,10 @@ function cardHtml(a) {
   else if (a.pmid) links.push(`<a href="https://pubmed.ncbi.nlm.nih.gov/${esc(a.pmid)}/" target="_blank" rel="noopener">PubMed</a>`);
 
   const collapsed = state.collapsed.has(a.id);
-  const brief = a.brief || { zh: {}, en: {} };
+  const points = asList(a.learnPoints)
+    .slice(0, 3)
+    .map((p) => `<li>${esc(p)}</li>`)
+    .join("");
 
   return `
   <article class="card" data-id="${esc(a.id)}">
@@ -303,26 +244,14 @@ function cardHtml(a) {
       ${a.authors ? `<span>${esc(a.authors)}</span>` : ""}
     </div>
     ${tags ? `<div class="tags">${tags}</div>` : ""}
-    ${highlightHtml(a.highlight)}
+    ${a.highlight ? `<div class="highlight"><p>${esc(a.highlight)}</p></div>` : ""}
     <div class="links">
       ${links.join("")}
-      <button type="button" class="expand" data-toggle>${collapsed ? "展开摘要" : "收起摘要"}</button>
+      <button type="button" class="expand" data-toggle>${collapsed ? "展开" : "收起"}</button>
     </div>
     <div class="detail${collapsed ? " collapsed" : ""}">
-      <div class="section">
-        <div class="section-label">内容</div>
-        ${bilingualBlock(brief.en?.content, brief.zh?.content)}
-      </div>
-      <div class="section">
-        <div class="section-label">方法</div>
-        ${bilingualBlock(brief.en?.methods, brief.zh?.methods)}
-      </div>
-      <div class="section">
-        <div class="section-label">结论</div>
-        ${bilingualBlock(brief.en?.conclusion, brief.zh?.conclusion)}
-      </div>
-      ${a.reason ? `<div class="section"><div class="section-label">纳入理由</div><div class="lang-block"><p>${esc(a.reason)}</p></div></div>` : ""}
-      ${learnPointsHtml(a.learnPoints)}
+      ${a.brief ? `<p class="brief-text">${esc(a.brief)}</p>` : ""}
+      ${points ? `<ul class="points">${points}</ul>` : ""}
     </div>
   </article>`;
 }
@@ -350,7 +279,7 @@ function wireListClicks() {
     const detail = card.querySelector(".detail");
     const collapsed = state.collapsed.has(id);
     detail.classList.toggle("collapsed", collapsed);
-    btn.textContent = collapsed ? "展开摘要" : "收起摘要";
+    btn.textContent = collapsed ? "展开" : "收起";
   });
 }
 
@@ -368,8 +297,7 @@ function fillJournalSelect(articles) {
 async function loadArticles() {
   setStatus("正在从 GitHub 拉取…", "info");
   const data = await fetchRepoFile("data/articles.json");
-  const raw = Array.isArray(data.articles) ? data.articles : [];
-  state.articles = raw.map(normalizeArticle);
+  state.articles = (Array.isArray(data.articles) ? data.articles : []).map(normalizeArticle);
   state.loaded = true;
   state.collapsed.clear();
   fillJournalSelect(state.articles);
@@ -475,7 +403,6 @@ function init() {
 
   if (!hasCreds()) {
     showGate(true);
-    setStatus("");
   } else {
     showGate(false);
     loadArticles().catch((err) => {
