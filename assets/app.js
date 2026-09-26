@@ -21,6 +21,7 @@ const state = {
   articles: [],
   selectedTags: new Set(),
   loaded: false,
+  collapsed: new Set(), // ids collapsed; default = expanded
 };
 
 function readCreds() {
@@ -28,17 +29,14 @@ function readCreds() {
   const token = (localStorage.getItem(LS_TOKEN) || "").trim();
   return { repo, token };
 }
-
 function saveCreds(repo, token) {
   localStorage.setItem(LS_REPO, repo.trim());
   localStorage.setItem(LS_TOKEN, token.trim());
 }
-
 function clearCreds() {
   localStorage.removeItem(LS_REPO);
   localStorage.removeItem(LS_TOKEN);
 }
-
 function hasCreds() {
   const { repo, token } = readCreds();
   return Boolean(repo && token);
@@ -84,10 +82,51 @@ async function fetchRepoFile(path) {
   if (res.status === 404) {
     throw new Error(`找不到 ${path}，请确认仓库与路径。`);
   }
-  if (!res.ok) {
-    throw new Error(`GitHub API ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`GitHub API ${res.status}`);
   return res.json();
+}
+
+/** Normalize legacy flat brief / highlight / learnPoints → bilingual */
+function normalizeArticle(a) {
+  const out = { ...a };
+  const b = a.brief || {};
+  if (b.zh || b.en) {
+    out.brief = {
+      zh: { content: b.zh?.content || "", methods: b.zh?.methods || "", conclusion: b.zh?.conclusion || "" },
+      en: { content: b.en?.content || "", methods: b.en?.methods || "", conclusion: b.en?.conclusion || "" },
+    };
+  } else {
+    const flat = {
+      content: b.content || "",
+      methods: b.methods || "",
+      conclusion: b.conclusion || "",
+    };
+    const sample = flat.content + flat.methods + flat.conclusion;
+    const cjk = /[\u4e00-\u9fff]/.test(sample);
+    out.brief = cjk
+      ? { zh: flat, en: { content: "", methods: "", conclusion: "" } }
+      : { zh: { content: "", methods: "", conclusion: "" }, en: flat };
+  }
+
+  const h = a.highlight;
+  if (typeof h === "string") {
+    out.highlight = /[\u4e00-\u9fff]/.test(h) ? { zh: h, en: "" } : { zh: "", en: h };
+  } else if (h && typeof h === "object") {
+    out.highlight = { zh: h.zh || "", en: h.en || "" };
+  } else {
+    out.highlight = { zh: "", en: "" };
+  }
+
+  const lp = a.learnPoints;
+  if (Array.isArray(lp)) {
+    const cjk = lp.some((x) => /[\u4e00-\u9fff]/.test(x));
+    out.learnPoints = cjk ? { zh: lp, en: [] } : { zh: [], en: lp };
+  } else if (lp && typeof lp === "object") {
+    out.learnPoints = { zh: lp.zh || [], en: lp.en || [] };
+  } else {
+    out.learnPoints = { zh: [], en: [] };
+  }
+  return out;
 }
 
 function journalOptions(articles) {
@@ -97,7 +136,7 @@ function journalOptions(articles) {
     const name = a.journalName || id;
     if (!map.has(id)) map.set(id, name);
   }
-  return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "zh"));
+  return [...map.entries()].sort((x, y) => x[1].localeCompare(y[1], "zh"));
 }
 
 function buildTagBar(articles) {
@@ -118,8 +157,7 @@ function buildTagBar(articles) {
   });
   bar.appendChild(clear);
 
-  const ids = [...counts.keys()].sort((a, b) => a.localeCompare(b));
-  for (const id of ids) {
+  for (const id of [...counts.keys()].sort((a, b) => a.localeCompare(b))) {
     const meta = TAG_META[id] || { label: id, color: "#e2e8f0", ink: "#334155" };
     const btn = document.createElement("button");
     btn.type = "button";
@@ -155,7 +193,23 @@ function filteredArticles() {
   }
   if (q) {
     list = list.filter((a) => {
-      const blob = [a.title, a.highlight, a.doi, a.id, a.reason, ...(a.learnPoints || [])]
+      const b = a.brief || { zh: {}, en: {} };
+      const blob = [
+        a.title,
+        a.highlight?.zh,
+        a.highlight?.en,
+        a.doi,
+        a.id,
+        a.reason,
+        b.zh?.content,
+        b.zh?.methods,
+        b.zh?.conclusion,
+        b.en?.content,
+        b.en?.methods,
+        b.en?.conclusion,
+        ...(a.learnPoints?.zh || []),
+        ...(a.learnPoints?.en || []),
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -174,6 +228,51 @@ function pill(tag) {
   return `<span class="pill" style="background:${meta.color};color:${meta.ink}">${meta.label}</span>`;
 }
 
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function bilingualBlock(enText, zhText) {
+  const en = (enText || "").trim();
+  const zh = (zhText || "").trim();
+  if (!en && !zh) return `<div class="lang-block"><p>—</p></div>`;
+  let html = `<div class="bilingual">`;
+  if (en) {
+    html += `<div class="lang-block en"><div class="lang-tag">EN</div><p>${esc(en)}</p></div>`;
+  }
+  if (zh) {
+    html += `<div class="lang-block zh"><div class="lang-tag">中文</div><p>${esc(zh)}</p></div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function highlightHtml(h) {
+  const en = (h?.en || "").trim();
+  const zh = (h?.zh || "").trim();
+  if (!en && !zh) return "";
+  return `<div class="highlight"><div class="lang-pair">${bilingualBlock(en, zh)}</div></div>`;
+}
+
+function learnPointsHtml(lp) {
+  const en = lp?.en || [];
+  const zh = lp?.zh || [];
+  if (!en.length && !zh.length) return "";
+  let html = `<div class="section"><div class="section-label">可学习点</div><div class="bilingual">`;
+  if (en.length) {
+    html += `<div class="lang-block en"><div class="lang-tag">EN</div><ul>${en.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>`;
+  }
+  if (zh.length) {
+    html += `<div class="lang-block zh"><div class="lang-tag">中文</div><ul>${zh.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>`;
+  }
+  html += `</div></div>`;
+  return html;
+}
+
 function cardHtml(a) {
   const score = a.relevanceScore ?? 0;
   const scoreClass = score >= 0.55 ? "score" : "score mid";
@@ -182,44 +281,42 @@ function cardHtml(a) {
   if (a.url) links.push(`<a href="${esc(a.url)}" target="_blank" rel="noopener">原文</a>`);
   if (a.pubmedUrl) links.push(`<a href="${esc(a.pubmedUrl)}" target="_blank" rel="noopener">PubMed</a>`);
   else if (a.pmid) links.push(`<a href="https://pubmed.ncbi.nlm.nih.gov/${esc(a.pmid)}/" target="_blank" rel="noopener">PubMed</a>`);
-  const brief = a.brief || {};
-  const points = (a.learnPoints || []).map((p) => `<li>${esc(p)}</li>`).join("");
+
+  const collapsed = state.collapsed.has(a.id);
+  const brief = a.brief || { zh: {}, en: {} };
+
   return `
   <article class="card" data-id="${esc(a.id)}">
-    <div class="card-head">
-      <div>
-        <h3><a href="${esc(a.url || (a.doi ? "https://doi.org/" + a.doi : "#"))}" target="_blank" rel="noopener">${esc(a.title || "(无标题)")}</a></h3>
-        <div class="meta">
-          <span>${esc(a.journalName || a.journalId || "")}</span>
-          <span>${esc(a.publishedAt || "")}</span>
-          <span>${esc(a.articleType || "")}</span>
-          <span class="${scoreClass}">${score.toFixed(2)}</span>
-          ${a.authors ? `<span>${esc(a.authors)}</span>` : ""}
-        </div>
-      </div>
+    <h3><a href="${esc(a.url || (a.doi ? "https://doi.org/" + a.doi : "#"))}" target="_blank" rel="noopener">${esc(a.title || "(无标题)")}</a></h3>
+    <div class="meta">
+      <span>${esc(a.journalName || a.journalId || "")}</span>
+      <span>${esc(a.publishedAt || "")}</span>
+      <span class="${scoreClass}">${score.toFixed(2)}</span>
+      ${a.authors ? `<span>${esc(a.authors)}</span>` : ""}
     </div>
     ${tags ? `<div class="tags">${tags}</div>` : ""}
-    ${a.highlight ? `<p class="highlight">${esc(a.highlight)}</p>` : ""}
-    ${links.length ? `<div class="links">${links.join("")}</div>` : ""}
-    <button type="button" class="expand" data-expand>展开摘要</button>
-    <div class="detail" hidden>
-      <dl>
-        <div><dt>内容</dt><dd>${esc(brief.content || "—")}</dd></div>
-        <div><dt>方法</dt><dd>${esc(brief.methods || "—")}</dd></div>
-        <div><dt>结论</dt><dd>${esc(brief.conclusion || "—")}</dd></div>
-        ${a.reason ? `<div><dt>纳入理由</dt><dd>${esc(a.reason)}</dd></div>` : ""}
-        ${points ? `<div><dt>可学习点</dt><dd><ul>${points}</ul></dd></div>` : ""}
-      </dl>
+    ${highlightHtml(a.highlight)}
+    <div class="links">
+      ${links.join("")}
+      <button type="button" class="expand" data-toggle>${collapsed ? "展开摘要" : "收起摘要"}</button>
+    </div>
+    <div class="detail${collapsed ? " collapsed" : ""}">
+      <div class="section">
+        <div class="section-label">内容</div>
+        ${bilingualBlock(brief.en?.content, brief.zh?.content)}
+      </div>
+      <div class="section">
+        <div class="section-label">方法</div>
+        ${bilingualBlock(brief.en?.methods, brief.zh?.methods)}
+      </div>
+      <div class="section">
+        <div class="section-label">结论</div>
+        ${bilingualBlock(brief.en?.conclusion, brief.zh?.conclusion)}
+      </div>
+      ${a.reason ? `<div class="section"><div class="section-label">纳入理由</div><div class="lang-block"><p>${esc(a.reason)}</p></div></div>` : ""}
+      ${learnPointsHtml(a.learnPoints)}
     </div>
   </article>`;
-}
-
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function renderList() {
@@ -235,19 +332,25 @@ function renderList() {
 
 function wireListClicks() {
   el("list").addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-expand]");
+    const btn = e.target.closest("[data-toggle]");
     if (!btn) return;
-    const detail = btn.parentElement.querySelector(".detail");
-    const open = detail.hidden;
-    detail.hidden = !open;
-    btn.textContent = open ? "收起摘要" : "展开摘要";
+    const card = btn.closest(".card");
+    const id = card?.dataset.id;
+    if (!id) return;
+    if (state.collapsed.has(id)) state.collapsed.delete(id);
+    else state.collapsed.add(id);
+    const detail = card.querySelector(".detail");
+    const collapsed = state.collapsed.has(id);
+    detail.classList.toggle("collapsed", collapsed);
+    btn.textContent = collapsed ? "展开摘要" : "收起摘要";
   });
 }
 
 function fillJournalSelect(articles) {
   const sel = el("filter-journal");
   const cur = sel.value;
-  sel.innerHTML = `<option value="">全部期刊</option>` +
+  sel.innerHTML =
+    `<option value="">全部期刊</option>` +
     journalOptions(articles)
       .map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`)
       .join("");
@@ -257,11 +360,12 @@ function fillJournalSelect(articles) {
 async function loadArticles() {
   setStatus("正在从 GitHub 拉取…", "info");
   const data = await fetchRepoFile("data/articles.json");
-  const articles = Array.isArray(data.articles) ? data.articles : [];
-  state.articles = articles;
+  const raw = Array.isArray(data.articles) ? data.articles : [];
+  state.articles = raw.map(normalizeArticle);
   state.loaded = true;
-  fillJournalSelect(articles);
-  buildTagBar(articles);
+  state.collapsed.clear();
+  fillJournalSelect(state.articles);
+  buildTagBar(state.articles);
   el("filters").hidden = false;
   el("list").hidden = false;
   el("btn-refresh").hidden = false;
@@ -319,8 +423,7 @@ function init() {
 
   el("settings-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const submitter = e.submitter;
-    const value = submitter?.value;
+    const value = e.submitter?.value;
     const dialog = el("settings-dialog");
     if (value === "cancel") {
       dialog.close();

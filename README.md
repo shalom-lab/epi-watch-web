@@ -23,3 +23,5 @@ python3 -m http.server 8080
 ## Pages
 
 仓库 Settings → Pages → Deploy from branch：`main` / root（已含 `.nojekyll`）。
+
+摘要字段为英中双语（brief / highlight / learnPoints 的 en + zh），卡片默认展开、多栏网格布局。
