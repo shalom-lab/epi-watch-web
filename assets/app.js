@@ -4,13 +4,14 @@ const DEFAULT_REPO = "shalom-lab/epi-watch";
 
 const TAG_META = {
   epidemiology: { label: "流行病学", color: "#dbeafe", ink: "#1e40af" },
-  methods: { label: "方法", color: "#e0e7ff", ink: "#3730a3" },
   "statistical-methods": { label: "统计方法", color: "#ede9fe", ink: "#5b21b6" },
+  "causal-inference": { label: "因果推断", color: "#e0e7ff", ink: "#3730a3" },
   "mathematical-model": { label: "数学模型", color: "#fae8ff", ink: "#86198f" },
   "infectious-disease-model": { label: "传染病模型", color: "#fce7f3", ink: "#9d174d" },
   rsv: { label: "RSV", color: "#d1fae5", ink: "#065f46" },
   influenza: { label: "流感", color: "#ccfbf1", ink: "#0f766e" },
   covid: { label: "COVID", color: "#ffedd5", ink: "#9a3412" },
+  "emerging-id": { label: "新发传染病", color: "#ffe4e6", ink: "#9f1239" },
   "vaccine-epi": { label: "疫苗流行病学", color: "#fef3c7", ink: "#92400e" },
   "surveillance-outbreak": { label: "监测与暴发", color: "#fee2e2", ink: "#991b1b" },
   ai: { label: "人工智能", color: "#e0f2fe", ink: "#075985" },
@@ -128,7 +129,9 @@ function normalizeArticle(a) {
     brief: asText(a.brief),
     highlight: asText(a.highlight),
     learnPoints: asList(a.learnPoints),
+    statisticalMethods: asList(a.statisticalMethods),
     reason: asText(a.reason) || a.reason || "",
+    tags: (a.tags || []).filter((x) => x && x !== "methods"),
   };
 }
 
@@ -221,7 +224,7 @@ function filteredArticles() {
   }
   if (q) {
     list = list.filter((a) => {
-      const blob = [a.title, a.highlight, a.brief, a.doi, a.id, a.reason, ...asList(a.learnPoints)]
+      const blob = [a.title, a.highlight, a.brief, a.doi, a.id, a.reason, ...asList(a.learnPoints), ...asList(a.statisticalMethods)]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -261,6 +264,10 @@ function cardHtml(a) {
     .slice(0, 3)
     .map((p) => `<li>${esc(p)}</li>`)
     .join("");
+  const methods = asList(a.statisticalMethods)
+    .slice(0, 6)
+    .map((m) => `<span class="method-chip">${esc(m)}</span>`)
+    .join("");
 
   return `
   <article class="card" data-id="${esc(a.id)}">
@@ -272,6 +279,7 @@ function cardHtml(a) {
       ${a.authors ? `<span>${esc(a.authors)}</span>` : ""}
     </div>
     ${tags ? `<div class="tags">${tags}</div>` : ""}
+    ${methods ? `<div class="methods-row"><span class="methods-label">统计方法</span>${methods}</div>` : ""}
     ${a.highlight ? `<div class="highlight"><p>${esc(a.highlight)}</p></div>` : ""}
     <div class="links">
       ${links.join("")}

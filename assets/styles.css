@@ -437,3 +437,24 @@ dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
     max-height: 220px;
   }
 }
+
+.methods-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+.methods-label {
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  margin-right: 2px;
+}
+.method-chip {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
