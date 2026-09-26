@@ -14,6 +14,9 @@ const TAG_META = {
   "vaccine-epi": { label: "疫苗流行病学", color: "#fef3c7", ink: "#92400e" },
   "surveillance-outbreak": { label: "监测与暴发", color: "#fee2e2", ink: "#991b1b" },
   ai: { label: "人工智能", color: "#e0f2fe", ink: "#075985" },
+  "vitamin-d": { label: "维生素D", color: "#fef9c3", ink: "#854d0e" },
+  immunity: { label: "人体免疫力", color: "#f3e8ff", ink: "#6b21a8" },
+  seasonality: { label: "季节性", color: "#ecfccb", ink: "#3f6212" },
 };
 
 const el = (id) => document.getElementById(id);
