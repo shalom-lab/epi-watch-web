@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Epi 期刊嗅探</title>
+  <meta name="description" content="流行病学 / 传染病建模文献嗅探 · BYOK" />
+  <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%232563eb' width='32' height='32' rx='8'/%3E%3Ctext x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-family='system-ui'%3Ee%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <span class="mark">e</span>
+        <div>
+          <h1>Epi 期刊嗅探</h1>
+          <p class="sub">流行病学 · 传染病 · 建模 · BYOK</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button type="button" id="btn-refresh" class="btn ghost" title="重新拉取" hidden>刷新</button>
+        <button type="button" id="btn-settings" class="btn ghost" aria-label="设置">设置</button>
+      </div>
+    </header>
+
+    <section id="gate" class="panel gate" hidden>
+      <h2>连接数据源</h2>
+      <p class="muted">本站只托管前端。文章来自私有仓，需你自备 GitHub token（写入本机 localStorage，不上传本仓库）。</p>
+      <form id="setup-form" class="form">
+        <label>仓库 <span class="req">gh-repo</span>
+          <input id="setup-repo" name="repo" type="text" placeholder="shalom-lab/epi-watch" autocomplete="off" />
+        </label>
+        <label>Token <span class="req">gh-token</span>
+          <div class="pw-row">
+            <input id="setup-token" name="token" type="password" placeholder="ghp_… 需能读私有仓" autocomplete="off" />
+            <button type="button" class="btn ghost mini" id="toggle-setup-token">显示</button>
+          </div>
+        </label>
+        <div class="row">
+          <button type="submit" class="btn primary">保存并加载</button>
+        </div>
+        <p class="hint">推荐 fine-grained PAT：只授权目标仓 Contents: Read。</p>
+      </form>
+    </section>
+
+    <section id="filters" class="filters" hidden>
+      <div class="filter-row">
+        <label class="inline">期刊
+          <select id="filter-journal"></select>
+        </label>
+        <label class="inline">相关度
+          <select id="filter-score">
+            <option value="0.55" selected>≥ 0.55</option>
+            <option value="0.2">≥ 0.2</option>
+            <option value="0">全部</option>
+          </select>
+        </label>
+        <label class="inline grow">搜索
+          <input id="filter-q" type="search" placeholder="标题 / 亮点 / DOI" />
+        </label>
+        <span id="count" class="count"></span>
+      </div>
+      <div id="tag-bar" class="tag-bar" aria-label="按标签筛选"></div>
+    </section>
+
+    <p id="status" class="status" role="status" hidden></p>
+    <main id="list" class="list" hidden></main>
+
+    <dialog id="settings-dialog">
+      <form method="dialog" id="settings-form" class="form dialog-form">
+        <h2>设置</h2>
+        <label>仓库 <span class="req">gh-repo</span>
+          <input id="set-repo" type="text" autocomplete="off" />
+        </label>
+        <label>Token <span class="req">gh-token</span>
+          <div class="pw-row">
+            <input id="set-token" type="password" autocomplete="off" />
+            <button type="button" class="btn ghost mini" id="toggle-set-token">显示</button>
+          </div>
+        </label>
+        <div class="row dialog-actions">
+          <button type="button" class="btn danger" id="btn-clear" value="clear">清除本地密钥</button>
+          <div class="spacer"></div>
+          <button type="submit" class="btn ghost" value="cancel">取消</button>
+          <button type="submit" class="btn primary" id="btn-save-settings" value="save">保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <footer class="foot">
+      <a href="https://github.com/shalom-lab/epi-watch-web" target="_blank" rel="noopener">前端源码</a>
+      <span>·</span>
+      <span>密钥仅存本机</span>
+    </footer>
+  </div>
+  <script src="assets/app.js" type="module"></script>
+</body>
+</html>
