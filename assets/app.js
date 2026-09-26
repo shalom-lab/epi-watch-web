@@ -13,6 +13,7 @@ const TAG_META = {
   covid: { label: "COVID", color: "#ffedd5", ink: "#9a3412" },
   "vaccine-epi": { label: "疫苗流行病学", color: "#fef3c7", ink: "#92400e" },
   "surveillance-outbreak": { label: "监测与暴发", color: "#fee2e2", ink: "#991b1b" },
+  ai: { label: "人工智能", color: "#e0f2fe", ink: "#075985" },
 };
 
 const el = (id) => document.getElementById(id);
