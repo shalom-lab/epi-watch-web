@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Epi 期刊嗅探</title>
   <meta name="description" content="流行病学 / 传染病建模文献嗅探 · BYOK" />
-  <link rel="stylesheet" href="assets/styles.css?v=4" />
+  <link rel="stylesheet" href="assets/styles.css?v=5" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%232563eb' width='32' height='32' rx='8'/%3E%3Ctext x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-family='system-ui'%3Ee%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -44,28 +44,40 @@
       </form>
     </section>
 
-    <section id="filters" class="filters" hidden>
-      <div class="filter-row">
-        <label class="inline">期刊
-          <select id="filter-journal"></select>
-        </label>
-        <label class="inline">相关度
-          <select id="filter-score">
-            <option value="0.55" selected>≥ 0.55</option>
-            <option value="0.2">≥ 0.2</option>
-            <option value="0">全部</option>
-          </select>
-        </label>
-        <label class="inline grow">搜索
-          <input id="filter-q" type="search" placeholder="标题 / 亮点 / DOI" />
-        </label>
-        <span id="count" class="count"></span>
-      </div>
-      <div id="tag-bar" class="tag-bar" aria-label="按标签筛选"></div>
-    </section>
+    <div id="workspace" class="workspace" hidden>
+      <aside class="sidebar panel" aria-label="期刊筛选">
+        <div class="sidebar-head">
+          <h2>期刊</h2>
+          <label class="check all">
+            <input type="checkbox" id="journal-all" checked />
+            <span>全选</span>
+          </label>
+        </div>
+        <div id="journal-list" class="journal-list"></div>
+      </aside>
 
-    <p id="status" class="status" role="status" hidden></p>
-    <main id="list" class="list" hidden></main>
+      <div class="main-col">
+        <section id="filters" class="filters">
+          <div class="filter-row">
+            <label class="inline">相关度
+              <select id="filter-score">
+                <option value="0.55" selected>≥ 0.55</option>
+                <option value="0.2">≥ 0.2</option>
+                <option value="0">全部</option>
+              </select>
+            </label>
+            <label class="inline grow">搜索
+              <input id="filter-q" type="search" placeholder="标题 / 亮点 / DOI" />
+            </label>
+            <span id="count" class="count"></span>
+          </div>
+          <div id="tag-bar" class="tag-bar" aria-label="按标签筛选"></div>
+        </section>
+
+        <p id="status" class="status" role="status" hidden></p>
+        <main id="list" class="list"></main>
+      </div>
+    </div>
 
     <dialog id="settings-dialog">
       <form method="dialog" id="settings-form" class="form dialog-form">
@@ -94,6 +106,6 @@
       <span>密钥仅存本机</span>
     </footer>
   </div>
-  <script src="assets/app.js?v=4" type="module"></script>
+  <script src="assets/app.js?v=5" type="module"></script>
 </body>
 </html>

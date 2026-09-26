@@ -20,9 +20,7 @@ const el = (id) => document.getElementById(id);
 function asList(v) {
   if (Array.isArray(v)) return v.filter((x) => x != null && String(x).trim().length);
   if (typeof v === "string" && v.trim()) return [v.trim()];
-  if (v && typeof v === "object") {
-    return [...asList(v.zh), ...asList(v.en)];
-  }
+  if (v && typeof v === "object") return [...asList(v.zh), ...asList(v.en)];
   return [];
 }
 
@@ -30,7 +28,6 @@ function asText(v) {
   if (v == null) return "";
   if (typeof v === "string") return v.trim();
   if (typeof v === "object") {
-    // legacy bilingual brief object
     if (v.zh || v.en) {
       const zh = v.zh;
       const en = v.en;
@@ -54,6 +51,8 @@ function asText(v) {
 
 const state = {
   articles: [],
+  journals: [], // [{id, name, count}]
+  selectedJournals: new Set(), // empty = none; all ids = all selected
   selectedTags: new Set(),
   loaded: false,
   collapsed: new Set(),
@@ -92,8 +91,7 @@ function setStatus(msg, kind = "error") {
 
 function showGate(show) {
   el("gate").hidden = !show;
-  el("filters").hidden = show || !state.loaded;
-  el("list").hidden = show || !state.loaded;
+  el("workspace").hidden = show || !state.loaded;
   el("btn-refresh").hidden = show || !state.loaded;
   if (show) {
     const { repo, token } = readCreds();
@@ -130,13 +128,38 @@ function normalizeArticle(a) {
   };
 }
 
-function journalOptions(articles) {
+function buildJournalIndex(articles) {
   const map = new Map();
   for (const a of articles) {
     const id = a.journalId || "unknown";
-    if (!map.has(id)) map.set(id, a.journalName || id);
+    const name = a.journalName || id;
+    if (!map.has(id)) map.set(id, { id, name, count: 0 });
+    map.get(id).count += 1;
   }
-  return [...map.entries()].sort((x, y) => x[1].localeCompare(y[1], "zh"));
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "zh"));
+}
+
+function syncAllCheckbox() {
+  const all = el("journal-all");
+  const total = state.journals.length;
+  const n = state.selectedJournals.size;
+  all.checked = total > 0 && n === total;
+  all.indeterminate = n > 0 && n < total;
+}
+
+function renderJournalList() {
+  const root = el("journal-list");
+  root.innerHTML = state.journals
+    .map((j) => {
+      const on = state.selectedJournals.has(j.id);
+      return `<label class="check journal-item${on ? " on" : ""}">
+        <input type="checkbox" data-journal="${esc(j.id)}" ${on ? "checked" : ""} />
+        <span class="j-name" title="${esc(j.name)}">${esc(j.name)}</span>
+        <span class="j-count">${j.count}</span>
+      </label>`;
+    })
+    .join("");
+  syncAllCheckbox();
 }
 
 function buildTagBar(articles) {
@@ -182,11 +205,13 @@ function renderFiltersChrome() {
 }
 
 function filteredArticles() {
-  const journal = el("filter-journal").value;
   const minScore = Number(el("filter-score").value);
   const q = el("filter-q").value.trim().toLowerCase();
   let list = state.articles.filter((a) => (a.relevanceScore ?? 0) >= minScore);
-  if (journal) list = list.filter((a) => a.journalId === journal);
+  if (state.selectedJournals.size === 0) list = [];
+  else if (state.selectedJournals.size < state.journals.length) {
+    list = list.filter((a) => state.selectedJournals.has(a.journalId));
+  }
   if (state.selectedTags.size) {
     list = list.filter((a) => (a.tags || []).some((t) => state.selectedTags.has(t)));
   }
@@ -227,7 +252,6 @@ function cardHtml(a) {
   if (a.url) links.push(`<a href="${esc(a.url)}" target="_blank" rel="noopener">原文</a>`);
   if (a.pubmedUrl) links.push(`<a href="${esc(a.pubmedUrl)}" target="_blank" rel="noopener">PubMed</a>`);
   else if (a.pmid) links.push(`<a href="https://pubmed.ncbi.nlm.nih.gov/${esc(a.pmid)}/" target="_blank" rel="noopener">PubMed</a>`);
-
   const collapsed = state.collapsed.has(a.id);
   const points = asList(a.learnPoints)
     .slice(0, 3)
@@ -283,27 +307,39 @@ function wireListClicks() {
   });
 }
 
-function fillJournalSelect(articles) {
-  const sel = el("filter-journal");
-  const cur = sel.value;
-  sel.innerHTML =
-    `<option value="">全部期刊</option>` +
-    journalOptions(articles)
-      .map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`)
-      .join("");
-  if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+function wireJournalSidebar() {
+  el("journal-all").addEventListener("change", (e) => {
+    if (e.target.checked) {
+      state.selectedJournals = new Set(state.journals.map((j) => j.id));
+    } else {
+      state.selectedJournals.clear();
+    }
+    renderJournalList();
+    renderList();
+  });
+
+  el("journal-list").addEventListener("change", (e) => {
+    const input = e.target.closest("input[data-journal]");
+    if (!input) return;
+    const id = input.dataset.journal;
+    if (input.checked) state.selectedJournals.add(id);
+    else state.selectedJournals.delete(id);
+    renderJournalList();
+    renderList();
+  });
 }
 
 async function loadArticles() {
   setStatus("正在从 GitHub 拉取…", "info");
   const data = await fetchRepoFile("data/articles.json");
   state.articles = (Array.isArray(data.articles) ? data.articles : []).map(normalizeArticle);
+  state.journals = buildJournalIndex(state.articles);
+  state.selectedJournals = new Set(state.journals.map((j) => j.id));
   state.loaded = true;
   state.collapsed.clear();
-  fillJournalSelect(state.articles);
+  renderJournalList();
   buildTagBar(state.articles);
-  el("filters").hidden = false;
-  el("list").hidden = false;
+  el("workspace").hidden = false;
   el("btn-refresh").hidden = false;
   renderList();
   setStatus("");
@@ -329,6 +365,7 @@ function init() {
   bindToggle("toggle-setup-token", "setup-token");
   bindToggle("toggle-set-token", "set-token");
   wireListClicks();
+  wireJournalSidebar();
 
   el("setup-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -396,7 +433,7 @@ function init() {
     showGate(true);
   });
 
-  for (const id of ["filter-journal", "filter-score", "filter-q"]) {
+  for (const id of ["filter-score", "filter-q"]) {
     el(id).addEventListener("input", renderList);
     el(id).addEventListener("change", renderList);
   }
