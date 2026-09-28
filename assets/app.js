@@ -13,6 +13,8 @@ const TAG_META = {
   covid: { label: "COVID", color: "#ffedd5", ink: "#9a3412" },
   "emerging-id": { label: "新发传染病", color: "#ffe4e6", ink: "#9f1239" },
   "vaccine-epi": { label: "疫苗流行病学", color: "#fef3c7", ink: "#92400e" },
+  ve: { label: "VE保护效果", color: "#fde68a", ink: "#78350f" },
+  "clinical-trial": { label: "临床试验", color: "#cffafe", ink: "#155e75" },
   "surveillance-outbreak": { label: "监测与暴发", color: "#fee2e2", ink: "#991b1b" },
   ai: { label: "人工智能", color: "#e0f2fe", ink: "#075985" },
   "vitamin-d": { label: "维生素D", color: "#fef9c3", ink: "#854d0e" },
