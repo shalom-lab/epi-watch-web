@@ -155,15 +155,25 @@ function ifBand(iff) {
 }
 
 function buildJournalIndex(articles) {
+  // Start from all known journals in meta (count 0), then merge article counts.
   const map = new Map();
+  for (const [id, meta] of Object.entries(state.journalMeta)) {
+    map.set(id, {
+      id,
+      name: meta.name || id,
+      count: 0,
+      group: meta.group || "general",
+      groupLabel: meta.groupLabel || "综合 / 其他",
+      impactFactor: meta.impactFactor ?? null,
+    });
+  }
   for (const a of articles) {
     const id = a.journalId || "unknown";
     const meta = state.journalMeta[id] || {};
-    const name = meta.name || a.journalName || id;
     if (!map.has(id)) {
       map.set(id, {
         id,
-        name,
+        name: meta.name || a.journalName || id,
         count: 0,
         group: meta.group || "general",
         groupLabel: meta.groupLabel || "综合 / 其他",
@@ -174,7 +184,7 @@ function buildJournalIndex(articles) {
   }
   const order = state.journalGroupOrder.length
     ? state.journalGroupOrder
-    : ["nejm","lancet","nature","science","jama","bmj","epi","id","respiratory","general"];
+    : ["nejm","lancet","nature","science","jama","bmj","epi","id","respiratory","china","general"];
   const rank = new Map(order.map((g, i) => [g, i]));
   return [...map.values()].sort((a, b) => {
     const ga = rank.has(a.group) ? rank.get(a.group) : 99;
