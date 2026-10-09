@@ -227,6 +227,17 @@ a:hover { text-decoration: underline; }
   font-weight: 600;
 }
 .score.mid { background: #fff7ed; color: #c2410c; }
+.author-line { display: inline-flex; align-items: baseline; gap: 4px; max-width: 100%; }
+.author-label {
+  font-size: 10px;
+  font-weight: 650;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 1.6;
+  flex-shrink: 0;
+}
 .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .pill {
   font-size: 10.5px;

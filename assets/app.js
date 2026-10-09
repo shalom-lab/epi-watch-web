@@ -327,7 +327,8 @@ function cardHtml(a) {
       <span>${esc(a.journalName || a.journalId || "")}</span>
       <span>${esc(a.publishedAt || "")}</span>
       <span class="${scoreClass}">${score.toFixed(2)}</span>
-      ${a.authors ? `<span>${esc(a.authors)}</span>` : ""}
+      ${a.firstAuthor ? `<span class="author-line"><span class="author-label">第一作者</span> ${esc(a.firstAuthor)}</span>` : (a.authors ? `<span>${esc(a.authors)}</span>` : "")}
+      ${a.correspondingAuthor ? `<span class="author-line"><span class="author-label">通讯</span> ${esc(a.correspondingAuthor)}</span>` : ""}
     </div>
     ${tags ? `<div class="tags">${tags}</div>` : ""}
     ${methods ? `<div class="methods-row"><span class="methods-label">统计方法</span>${methods}</div>` : ""}
