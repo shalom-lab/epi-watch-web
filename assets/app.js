@@ -312,32 +312,15 @@ function pubmedAuthorUrl(name) {
   return `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(n + "[Author]")}`;
 }
 
-function authorSearchChips(a) {
-  const names = [];
-  const seen = new Set();
-  const push = (raw, role) => {
-    for (const part of String(raw || "").split(/;|；/)) {
-      const n = part.trim();
-      if (!n) continue;
-      const key = n.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      names.push({ name: n, role });
-    }
-  };
-  push(a.firstAuthor, "一作");
-  push(a.correspondingAuthor, "通讯");
-  if (!names.length && a.authors) {
-    const first = String(a.authors).replace(/\s+et al\.?$/i, "").trim();
-    if (first) push(first, "作者");
-  }
-  if (!names.length) return "";
-  const chips = names.map(({ name, role }) => {
-    const url = pubmedAuthorUrl(name);
-    return `<a class="author-chip" href="${esc(url)}" target="_blank" rel="noopener" title="在 PubMed 搜索该作者"><span class="author-chip-role">${esc(role)}</span>${esc(name)}</a>`;
-  }).join("");
-  return `<div class="author-search"><span class="author-search-label">作者</span>${chips}</div>`;
+
+function correspondingAuthorLinks(a) {
+  const raw = a.correspondingAuthor || "";
+  const parts = String(raw).split(/;|；/).map((s) => s.trim()).filter(Boolean);
+  if (!parts.length) return "";
+  const links = parts.map((n) => `<a class="author-name-link" href="${esc(pubmedAuthorUrl(n))}" target="_blank" rel="noopener">${esc(n)}</a>`).join("；");
+  return `<span class="author-line"><span class="author-label">通讯</span> ${links}</span>`;
 }
+
 
 function cardHtml(a) {
   const score = a.relevanceScore ?? 0;
@@ -364,8 +347,8 @@ function cardHtml(a) {
       <span>${esc(a.journalName || a.journalId || "")}</span>
       <span>${esc(a.publishedAt || "")}</span>
       <span class="${scoreClass}">${score.toFixed(2)}</span>
-      ${a.firstAuthor ? `<span class="author-line"><span class="author-label">一作</span> ${esc(a.firstAuthor)}</span>` : (a.authors ? `<span>${esc(a.authors)}</span>` : "")}
-      ${a.correspondingAuthor ? `<span class="author-line"><span class="author-label">通讯</span> ${esc(a.correspondingAuthor)}</span>` : ""}
+      ${a.firstAuthor ? `<span class="author-line"><span class="author-label">一作</span> <a class="author-name-link" href="${esc(pubmedAuthorUrl(a.firstAuthor))}" target="_blank" rel="noopener">${esc(a.firstAuthor)}</a></span>` : (a.authors ? `<span>${esc(a.authors)}</span>` : "")}
+      ${correspondingAuthorLinks(a)}
     </div>
     ${tags ? `<div class="tags">${tags}</div>` : ""}
     ${methods ? `<div class="methods-row"><span class="methods-label">统计方法</span>${methods}</div>` : ""}
@@ -378,8 +361,7 @@ function cardHtml(a) {
       ${a.brief ? `<p class="brief-text">${esc(a.brief)}</p>` : ""}
       ${points ? `<ul class="points">${points}</ul>` : ""}
     </div>
-    ${authorSearchChips(a)}
-  </article>`;
+      </article>`;
 }
 
 function renderList() {
