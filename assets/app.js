@@ -3,23 +3,23 @@ const LS_TOKEN = "gh-token";
 const DEFAULT_REPO = "shalom-lab/epi-watch";
 
 const TAG_META = {
-  epidemiology: { label: "流行病学", color: "#dbeafe", ink: "#1e40af" },
+  epidemiology: { label: "流行病学方法", color: "#dbeafe", ink: "#1e40af" },
   "statistical-methods": { label: "统计方法", color: "#ede9fe", ink: "#5b21b6" },
   "causal-inference": { label: "因果推断", color: "#e0e7ff", ink: "#3730a3" },
   "mathematical-model": { label: "数学模型", color: "#fae8ff", ink: "#86198f" },
   "infectious-disease-model": { label: "传染病模型", color: "#fce7f3", ink: "#9d174d" },
+  ai: { label: "人工智能", color: "#e0f2fe", ink: "#075985" },
   rsv: { label: "RSV", color: "#d1fae5", ink: "#065f46" },
   influenza: { label: "流感", color: "#ccfbf1", ink: "#0f766e" },
   covid: { label: "COVID", color: "#ffedd5", ink: "#9a3412" },
   "emerging-id": { label: "新发传染病", color: "#ffe4e6", ink: "#9f1239" },
-  "vaccine-epi": { label: "疫苗流行病学", color: "#fef3c7", ink: "#92400e" },
-  ve: { label: "VE保护效果", color: "#fde68a", ink: "#78350f" },
+  ve: { label: "疫苗VE", color: "#fde68a", ink: "#78350f" },
   "clinical-trial": { label: "临床试验", color: "#cffafe", ink: "#155e75" },
   "surveillance-outbreak": { label: "监测与暴发", color: "#fee2e2", ink: "#991b1b" },
-  ai: { label: "人工智能", color: "#e0f2fe", ink: "#075985" },
-  "vitamin-d": { label: "维生素D", color: "#fef9c3", ink: "#854d0e" },
+  "vitamin-d": { label: "维生素D与感染", color: "#fef9c3", ink: "#854d0e" },
   immunity: { label: "人体免疫力", color: "#f3e8ff", ink: "#6b21a8" },
   seasonality: { label: "季节性", color: "#ecfccb", ink: "#3f6212" },
+  "china-team": { label: "中国团队", color: "#fce7f3", ink: "#9d174d" },
 };
 
 const el = (id) => document.getElementById(id);
@@ -133,7 +133,7 @@ function normalizeArticle(a) {
     learnPoints: asList(a.learnPoints),
     statisticalMethods: asList(a.statisticalMethods),
     reason: asText(a.reason) || a.reason || "",
-    tags: (a.tags || []).filter((x) => x && x !== "methods"),
+    tags: (a.tags || []).filter((x) => x && x !== "methods" && x !== "vaccine-epi"),
   };
 }
 
