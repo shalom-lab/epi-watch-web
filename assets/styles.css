@@ -596,19 +596,26 @@ dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
 }
 .j-only-group, .j-only {
   flex: none;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: #475569;
-  font-size: 10px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
   line-height: 1;
-  padding: 3px 6px;
-  border-radius: 999px;
+  padding: 2px 4px;
+  border-radius: 6px;
   cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease, color .12s ease, background .12s ease;
+}
+.journal-group-title:hover .j-only-group,
+.journal-item-row:hover .j-only,
+.j-only-group:focus-visible,
+.j-only:focus-visible {
+  opacity: 1;
 }
 .j-only-group:hover, .j-only:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
   color: #1d4ed8;
+  background: #eff6ff;
 }
 .journal-item-row {
   display: grid;

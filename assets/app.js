@@ -203,7 +203,7 @@ function renderJournalList() {
   for (const j of list) {
     if (j.groupLabel !== lastGroup) {
       lastGroup = j.groupLabel;
-      chunks.push(`<div class="journal-group-title"><span>${esc(j.groupLabel || "其他")}</span><button type="button" class="j-only-group" data-group="${esc(j.group || "")}" title="只选该类">只选该类</button></div>`);
+      chunks.push(`<div class="journal-group-title"><span>${esc(j.groupLabel || "其他")}</span><button type="button" class="j-only-group" data-group="${esc(j.group || "")}" title="只选该类" aria-label="只选该类">▣</button></div>`);
     }
     const on = state.selectedJournals.has(j.id);
     const band = ifBand(j.impactFactor);
@@ -216,7 +216,7 @@ function renderJournalList() {
           <span class="j-name" title="${esc(j.name)}">${esc(j.name)}</span>
           <span class="j-meta">${ifHtml}<span class="j-count">${j.count}</span></span>
         </label>
-        <button type="button" class="j-only" data-journal-only="${esc(j.id)}" title="只看此刊">只看</button>
+        <button type="button" class="j-only" data-journal-only="${esc(j.id)}" title="只看此刊" aria-label="只看此刊">◎</button>
       </div>`);
   }
   root.innerHTML = chunks.length ? chunks.join("") : `<div class="empty" style="padding:12px;font-size:12px">无匹配期刊</div>`;
