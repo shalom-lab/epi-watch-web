@@ -5,7 +5,6 @@
       <stop offset="1" stop-color="#0ea5e9"/>
     </linearGradient>
   </defs>
-  <rect width="32" height="32" rx="9" fill="url(#g)"/>
-  <!-- bold geometric e, fills most of the tile -->
-  <path fill="#fff" d="M8.2 8.2h15.6v3.6H12.4v2.8h9.8v3.4h-9.8v3.2h11.6v3.6H8.2z"/>
+  <rect width="32" height="32" rx="5" fill="url(#g)"/>
+  <path fill="#fff" d="M9.6 9.4h12.2v2.9H12.8v2.2h8.4v2.8h-8.4v2.5h9.2v2.9H9.6z"/>
 </svg>
