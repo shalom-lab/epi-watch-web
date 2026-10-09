@@ -134,6 +134,10 @@ function normalizeArticle(a) {
     brief: asText(a.brief),
     highlight: asText(a.highlight),
     learnPoints: asList(a.learnPoints),
+    outcome: asText(a.outcome),
+    exposure: asText(a.exposure),
+    population: asText(a.population),
+    site: asText(a.site),
     statisticalMethods: asList(a.statisticalMethods),
     reason: asText(a.reason) || a.reason || "",
     tags: (a.tags || []).filter((x) => x && x !== "methods" && x !== "vaccine-epi"),
@@ -323,6 +327,16 @@ function correspondingAuthorLinks(a) {
 }
 
 
+
+function epiContextRow(a) {
+  const parts = [a.outcome, a.exposure, a.population, a.site]
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
+  if (!parts.length) return "";
+  const chips = parts.map((p) => `<span class="ctx-chip">${esc(p)}</span>`).join('<span class="ctx-dot">·</span>');
+  return `<div class="ctx-row">${chips}</div>`;
+}
+
 function cardHtml(a) {
   const score = a.relevanceScore ?? 0;
   const scoreClass = score >= 0.55 ? "score" : "score mid";
@@ -352,6 +366,7 @@ function cardHtml(a) {
       ${correspondingAuthorLinks(a)}
     </div>
     ${tags ? `<div class="tags">${tags}</div>` : ""}
+    ${epiContextRow(a)}
     ${methods ? `<div class="methods-row"><span class="methods-label">统计方法</span>${methods}</div>` : ""}
     ${a.highlight ? `<div class="highlight"><p>${esc(a.highlight)}</p></div>` : ""}
     <div class="links">
