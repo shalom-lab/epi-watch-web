@@ -194,6 +194,7 @@ function syncAllCheckbox() {
 function renderJournalList() {
   const root = el("journal-list");
   const q = (state.journalQuery || "").trim().toLowerCase();
+  const inView = new Set(filteredArticles().map((a) => a.journalId).filter(Boolean));
   const list = q
     ? state.journals.filter((j) => j.name.toLowerCase().includes(q) || j.id.toLowerCase().includes(q) || (j.groupLabel || "").toLowerCase().includes(q))
     : state.journals;
@@ -210,7 +211,7 @@ function renderJournalList() {
     const ifHtml = j.impactFactor != null
       ? `<span class="j-if ${band}" title="近似影响因子（仅供颜色映射）">${Number(j.impactFactor).toFixed(1)}</span>`
       : "";
-    chunks.push(`<div class="journal-item-row${on ? " on" : ""}">
+    chunks.push(`<div class="journal-item-row${on ? " on" : ""}${inView.has(j.id) ? " in-view" : ""}">
         <label class="check journal-item">
           <input type="checkbox" data-journal="${esc(j.id)}" ${on ? "checked" : ""} />
           <span class="j-name" title="${esc(j.name)}">${esc(j.name)}</span>
@@ -364,6 +365,18 @@ function cardHtml(a) {
       </article>`;
 }
 
+
+function updateJournalInViewHighlights() {
+  const root = el("journal-list");
+  if (!root) return;
+  const inView = new Set(filteredArticles().map((a) => a.journalId).filter(Boolean));
+  for (const row of root.querySelectorAll(".journal-item-row")) {
+    const input = row.querySelector("input[data-journal]");
+    const id = input?.dataset.journal;
+    row.classList.toggle("in-view", !!(id && inView.has(id)));
+  }
+}
+
 function renderList() {
   const list = filteredArticles();
   el("count").textContent = `${list.length} / ${state.articles.length}`;
@@ -373,6 +386,7 @@ function renderList() {
     return;
   }
   root.innerHTML = list.map(cardHtml).join("");
+  updateJournalInViewHighlights();
 }
 
 function wireListClicks() {
