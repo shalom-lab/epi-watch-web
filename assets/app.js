@@ -341,7 +341,7 @@ function epiContextRow(a) {
     .map((x) => String(x || "").trim())
     .filter(Boolean);
   if (!parts.length) return "";
-  return `<div class="ctx-row"><span class="ctx-label">情境</span><span class="ctx-block">${parts.map(esc).join(" · ")}</span></div>`;
+  return `<div class="ctx-row"><span class="ctx-block">${parts.map(esc).join(" · ")}</span></div>`;
 }
 
 function cardHtml(a) {
