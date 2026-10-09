@@ -243,7 +243,7 @@ function buildTagBar(articles) {
   bar.innerHTML = "";
   const clear = document.createElement("button");
   clear.type = "button";
-  clear.className = "chip clear";
+  clear.className = "chip clear" + (state.selectedTags.size ? " active" : "");
   clear.textContent = "清除标签";
   clear.addEventListener("click", () => {
     state.selectedTags.clear();
@@ -274,6 +274,8 @@ function renderFiltersChrome() {
   for (const btn of el("tag-bar").querySelectorAll(".chip[data-tag]")) {
     btn.classList.toggle("on", state.selectedTags.has(btn.dataset.tag));
   }
+  const clear = el("tag-bar").querySelector(".chip.clear");
+  if (clear) clear.classList.toggle("active", state.selectedTags.size > 0);
 }
 
 function filteredArticles() {

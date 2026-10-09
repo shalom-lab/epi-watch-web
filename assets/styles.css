@@ -721,3 +721,14 @@ dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
   color: #334155;
   border: 1px solid #e2e8f0;
 }
+.chip.clear {
+  color: #94a3b8;
+}
+.chip.clear.active {
+  color: #2563eb;
+  border-color: #93c5fd;
+}
+.chip.clear.active:hover {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
