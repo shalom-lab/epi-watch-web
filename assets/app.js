@@ -196,6 +196,12 @@ function syncAllCheckbox() {
 }
 
 function renderJournalList() {
+  const totalEl = el("journal-total");
+  if (totalEl) {
+    const n = state.journals.length;
+    const arts = state.journals.reduce((s, j) => s + (j.count || 0), 0);
+    totalEl.textContent = n ? `（${n} 刊 · ${arts} 篇）` : "";
+  }
   const root = el("journal-list");
   const q = (state.journalQuery || "").trim().toLowerCase();
   const inView = new Set(filteredArticles().map((a) => a.journalId).filter(Boolean));

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Epi 期刊嗅探</title>
   <meta name="description" content="流行病学 / 传染病建模文献嗅探 · BYOK" />
-  <link rel="stylesheet" href="assets/styles.css?v=22" />
+  <link rel="stylesheet" href="assets/styles.css?v=23" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%232563eb' width='32' height='32' rx='8'/%3E%3Ctext x='16' y='22' text-anchor='middle' fill='white' font-size='16' font-family='system-ui'%3Ee%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -47,7 +47,7 @@
     <div id="workspace" class="workspace" hidden>
       <aside class="sidebar panel" aria-label="期刊筛选">
         <div class="sidebar-head">
-          <h2>期刊</h2>
+          <h2>期刊 <span id="journal-total" class="journal-total"></span></h2>
           <label class="check all">
             <input type="checkbox" id="journal-all" checked />
             <span>全选</span>
@@ -55,14 +55,6 @@
         </div>
         <div class="sidebar-tools">
           <input id="journal-q" type="search" placeholder="搜索期刊…" autocomplete="off" />
-          <div class="if-legend" title="影响因子为近似值，仅用于颜色映射">
-            <span>IF</span>
-            <span class="if-swatch if-b0"></span>
-            <span class="if-swatch if-b1"></span>
-            <span class="if-swatch if-b2"></span>
-            <span class="if-swatch if-b3"></span>
-            <span class="if-swatch if-b4"></span>
-          </div>
         </div>
         <div id="journal-list" class="journal-list"></div>
       </aside>
@@ -117,6 +109,6 @@
       <span>密钥仅存本机</span>
     </footer>
   </div>
-  <script src="assets/app.js?v=22" type="module"></script>
+  <script src="assets/app.js?v=23" type="module"></script>
 </body>
 </html>
