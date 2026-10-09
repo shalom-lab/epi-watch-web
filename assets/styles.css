@@ -628,4 +628,38 @@ dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
   margin-top: 6px;
   margin-right: 4px;
 }
-
+.author-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.author-search-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.author-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #1e40af;
+  text-decoration: none;
+}
+.author-chip:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.author-chip-role {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+}
