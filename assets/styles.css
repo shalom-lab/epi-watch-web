@@ -708,3 +708,22 @@ dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
   font-weight: 500;
   color: var(--muted);
 }
+.journal-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  align-items: center;
+}
+.j-only-matches {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.j-only-matches:hover {
+  color: #1d4ed8;
+  background: #eff6ff;
+}

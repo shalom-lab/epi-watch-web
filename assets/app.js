@@ -214,7 +214,7 @@ function renderJournalList() {
   for (const j of list) {
     if (j.groupLabel !== lastGroup) {
       lastGroup = j.groupLabel;
-      chunks.push(`<div class="journal-group-title"><span>${esc(j.groupLabel || "其他")}</span><button type="button" class="j-only-group" data-group="${esc(j.group || "")}" title="只选该类" aria-label="只选该类">▣</button></div>`);
+      chunks.push(`<div class="journal-group-title"><span>${esc(j.groupLabel || "其他")}</span><button type="button" class="j-only-group" data-group="${esc(j.group || "")}" title="只选该类" aria-label="只选该类">◎</button></div>`);
     }
     const on = state.selectedJournals.has(j.id);
     const band = ifBand(j.impactFactor);
@@ -451,7 +451,19 @@ function wireJournalSidebar() {
 
   el("journal-q").addEventListener("input", (e) => {
     state.journalQuery = e.target.value || "";
+    const btn = el("journal-only-matches");
+    if (btn) btn.hidden = !(state.journalQuery || "").trim();
     renderJournalList();
+  });
+  el("journal-only-matches")?.addEventListener("click", () => {
+    const q = (state.journalQuery || "").trim().toLowerCase();
+    if (!q) return;
+    const matched = state.journals.filter((j) =>
+      j.name.toLowerCase().includes(q) || j.id.toLowerCase().includes(q) || (j.groupLabel || "").toLowerCase().includes(q)
+    );
+    state.selectedJournals = new Set(matched.map((j) => j.id));
+    renderJournalList();
+    renderList();
   });
 
   el("journal-list").addEventListener("click", (e) => {
