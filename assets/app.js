@@ -58,7 +58,10 @@ function asText(v) {
 
 const state = {
   articles: [],
-  journals: [], // [{id, name, count}]
+  journals: [], // [{id, name, count, group, groupLabel, impactFactor}]
+  journalMeta: {}, // id -> meta from data/journals-meta.json
+  journalGroupOrder: [],
+  journalQuery: "",
   selectedJournals: new Set(), // empty = none; all ids = all selected
   selectedTags: new Set(),
   loaded: false,
@@ -137,15 +140,47 @@ function normalizeArticle(a) {
   };
 }
 
+function ifBand(iff) {
+  if (iff == null || Number.isNaN(Number(iff))) return "b0";
+  const v = Number(iff);
+  if (v >= 40) return "b4";
+  if (v >= 20) return "b3";
+  if (v >= 10) return "b2";
+  if (v >= 5) return "b1";
+  return "b0";
+}
+
 function buildJournalIndex(articles) {
   const map = new Map();
   for (const a of articles) {
     const id = a.journalId || "unknown";
-    const name = a.journalName || id;
-    if (!map.has(id)) map.set(id, { id, name, count: 0 });
+    const meta = state.journalMeta[id] || {};
+    const name = meta.name || a.journalName || id;
+    if (!map.has(id)) {
+      map.set(id, {
+        id,
+        name,
+        count: 0,
+        group: meta.group || "general",
+        groupLabel: meta.groupLabel || "综合 / 其他",
+        impactFactor: meta.impactFactor ?? null,
+      });
+    }
     map.get(id).count += 1;
   }
-  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "zh"));
+  const order = state.journalGroupOrder.length
+    ? state.journalGroupOrder
+    : ["nejm","lancet","nature","science","jama","bmj","epi","id","respiratory","general"];
+  const rank = new Map(order.map((g, i) => [g, i]));
+  return [...map.values()].sort((a, b) => {
+    const ga = rank.has(a.group) ? rank.get(a.group) : 99;
+    const gb = rank.has(b.group) ? rank.get(b.group) : 99;
+    if (ga !== gb) return ga - gb;
+    const ia = a.impactFactor == null ? -1 : a.impactFactor;
+    const ib = b.impactFactor == null ? -1 : b.impactFactor;
+    if (ib !== ia) return ib - ia;
+    return a.name.localeCompare(b.name, "en");
+  });
 }
 
 function syncAllCheckbox() {
@@ -158,16 +193,30 @@ function syncAllCheckbox() {
 
 function renderJournalList() {
   const root = el("journal-list");
-  root.innerHTML = state.journals
-    .map((j) => {
-      const on = state.selectedJournals.has(j.id);
-      return `<label class="check journal-item${on ? " on" : ""}">
+  const q = (state.journalQuery || "").trim().toLowerCase();
+  const list = q
+    ? state.journals.filter((j) => j.name.toLowerCase().includes(q) || j.id.toLowerCase().includes(q) || (j.groupLabel || "").toLowerCase().includes(q))
+    : state.journals;
+
+  const chunks = [];
+  let lastGroup = null;
+  for (const j of list) {
+    if (j.groupLabel !== lastGroup) {
+      lastGroup = j.groupLabel;
+      chunks.push(`<div class="journal-group-title">${esc(j.groupLabel || "其他")}</div>`);
+    }
+    const on = state.selectedJournals.has(j.id);
+    const band = ifBand(j.impactFactor);
+    const ifHtml = j.impactFactor != null
+      ? `<span class="j-if ${band}" title="近似影响因子（仅供颜色映射）">${Number(j.impactFactor).toFixed(1)}</span>`
+      : "";
+    chunks.push(`<label class="check journal-item${on ? " on" : ""}">
         <input type="checkbox" data-journal="${esc(j.id)}" ${on ? "checked" : ""} />
         <span class="j-name" title="${esc(j.name)}">${esc(j.name)}</span>
-        <span class="j-count">${j.count}</span>
-      </label>`;
-    })
-    .join("");
+        <span class="j-meta">${ifHtml}<span class="j-count">${j.count}</span></span>
+      </label>`);
+  }
+  root.innerHTML = chunks.length ? chunks.join("") : `<div class="empty" style="padding:12px;font-size:12px">无匹配期刊</div>`;
   syncAllCheckbox();
 }
 
@@ -338,17 +387,49 @@ function wireJournalSidebar() {
     const id = input.dataset.journal;
     if (input.checked) state.selectedJournals.add(id);
     else state.selectedJournals.delete(id);
-    renderJournalList();
+    // keep scroll: only update chrome for this item
+    input.closest(".journal-item")?.classList.toggle("on", input.checked);
+    syncAllCheckbox();
     renderList();
   });
+
+  el("journal-q").addEventListener("input", (e) => {
+    state.journalQuery = e.target.value || "";
+    renderJournalList();
+  });
+}
+
+async function loadJournalMeta() {
+  try {
+    const meta = await fetchRepoFile("data/journals-meta.json");
+    const map = {};
+    for (const j of meta.journals || []) map[j.id] = j;
+    state.journalMeta = map;
+    state.journalGroupOrder = meta.groupOrder || [];
+  } catch (err) {
+    // meta is optional; sidebar still works alphabetically via fallback group
+    console.warn("journals-meta.json", err);
+    state.journalMeta = {};
+    state.journalGroupOrder = [];
+  }
 }
 
 async function loadArticles() {
   setStatus("正在从 GitHub 拉取…", "info");
+  await loadJournalMeta();
   const data = await fetchRepoFile("data/articles.json");
   state.articles = (Array.isArray(data.articles) ? data.articles : []).map(normalizeArticle);
+  const prev = new Set(state.selectedJournals);
+  const first = !state.loaded;
   state.journals = buildJournalIndex(state.articles);
-  state.selectedJournals = new Set(state.journals.map((j) => j.id));
+  const ids = state.journals.map((j) => j.id);
+  if (first || !prev.size) {
+    state.selectedJournals = new Set(ids);
+  } else {
+    const next = new Set(ids.filter((id) => prev.has(id)));
+    for (const id of ids) if (!prev.has(id)) next.add(id); // new journals on
+    state.selectedJournals = next;
+  }
   state.loaded = true;
   state.collapsed.clear();
   renderJournalList();
