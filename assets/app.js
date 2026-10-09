@@ -339,8 +339,7 @@ function epiContextRow(a) {
     .map((x) => String(x || "").trim())
     .filter(Boolean);
   if (!parts.length) return "";
-  const chips = parts.map((p) => `<span class="ctx-chip">${esc(p)}</span>`).join('<span class="ctx-dot">·</span>');
-  return `<div class="ctx-row">${chips}</div>`;
+  return `<div class="ctx-row"><span class="ctx-block">${parts.map(esc).join(" · ")}</span></div>`;
 }
 
 function cardHtml(a) {
