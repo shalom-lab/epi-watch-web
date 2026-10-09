@@ -329,7 +329,7 @@ function correspondingAuthorLinks(a) {
 
 
 function epiContextRow(a) {
-  const parts = [a.outcome, a.exposure, a.population, a.site]
+  const parts = [a.exposure, a.outcome, a.population, a.site]
     .map((x) => String(x || "").trim())
     .filter(Boolean);
   if (!parts.length) return "";
