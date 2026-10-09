@@ -203,18 +203,21 @@ function renderJournalList() {
   for (const j of list) {
     if (j.groupLabel !== lastGroup) {
       lastGroup = j.groupLabel;
-      chunks.push(`<div class="journal-group-title">${esc(j.groupLabel || "其他")}</div>`);
+      chunks.push(`<div class="journal-group-title"><span>${esc(j.groupLabel || "其他")}</span><button type="button" class="j-only-group" data-group="${esc(j.group || "")}" title="只选该类">只选该类</button></div>`);
     }
     const on = state.selectedJournals.has(j.id);
     const band = ifBand(j.impactFactor);
     const ifHtml = j.impactFactor != null
       ? `<span class="j-if ${band}" title="近似影响因子（仅供颜色映射）">${Number(j.impactFactor).toFixed(1)}</span>`
       : "";
-    chunks.push(`<label class="check journal-item${on ? " on" : ""}">
-        <input type="checkbox" data-journal="${esc(j.id)}" ${on ? "checked" : ""} />
-        <span class="j-name" title="${esc(j.name)}">${esc(j.name)}</span>
-        <span class="j-meta">${ifHtml}<span class="j-count">${j.count}</span></span>
-      </label>`);
+    chunks.push(`<div class="journal-item-row${on ? " on" : ""}">
+        <label class="check journal-item">
+          <input type="checkbox" data-journal="${esc(j.id)}" ${on ? "checked" : ""} />
+          <span class="j-name" title="${esc(j.name)}">${esc(j.name)}</span>
+          <span class="j-meta">${ifHtml}<span class="j-count">${j.count}</span></span>
+        </label>
+        <button type="button" class="j-only" data-journal-only="${esc(j.id)}" title="只看此刊">只看</button>
+      </div>`);
   }
   root.innerHTML = chunks.length ? chunks.join("") : `<div class="empty" style="padding:12px;font-size:12px">无匹配期刊</div>`;
   syncAllCheckbox();
@@ -389,7 +392,7 @@ function wireJournalSidebar() {
     if (input.checked) state.selectedJournals.add(id);
     else state.selectedJournals.delete(id);
     // keep scroll: only update chrome for this item
-    input.closest(".journal-item")?.classList.toggle("on", input.checked);
+    input.closest(".journal-item-row")?.classList.toggle("on", input.checked);
     syncAllCheckbox();
     renderList();
   });
@@ -397,6 +400,26 @@ function wireJournalSidebar() {
   el("journal-q").addEventListener("input", (e) => {
     state.journalQuery = e.target.value || "";
     renderJournalList();
+  });
+
+  el("journal-list").addEventListener("click", (e) => {
+    const only = e.target.closest("[data-journal-only]");
+    if (only) {
+      e.preventDefault();
+      const id = only.dataset.journalOnly;
+      state.selectedJournals = new Set([id]);
+      renderJournalList();
+      renderList();
+      return;
+    }
+    const grp = e.target.closest("[data-group]");
+    if (grp && grp.classList.contains("j-only-group")) {
+      e.preventDefault();
+      const g = grp.dataset.group;
+      state.selectedJournals = new Set(state.journals.filter((j) => j.group === g).map((j) => j.id));
+      renderJournalList();
+      renderList();
+    }
   });
 }
 
