@@ -19,6 +19,7 @@ const TAG_META = {
   "vitamin-d": { label: "维生素D与感染", color: "#fef9c3", ink: "#854d0e" },
   immunity: { label: "人体免疫力", color: "#f3e8ff", ink: "#6b21a8" },
   seasonality: { label: "季节性", color: "#ecfccb", ink: "#3f6212" },
+  seroepi: { label: "血清流行病学", color: "#fae8ff", ink: "#86198f" },
   "china-team": { label: "中国团队", color: "#fce7f3", ink: "#9d174d" },
 };
 
