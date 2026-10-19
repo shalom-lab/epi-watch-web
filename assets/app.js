@@ -88,6 +88,38 @@ function hasCreds() {
   return Boolean(repo && token);
 }
 
+
+function formatUpdatedAt(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 16).replace("T", " ");
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t) => parts.find((p) => p.type === t)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+}
+
+function setDataUpdated(iso) {
+  const node = el("data-updated");
+  if (!node) return;
+  const text = formatUpdatedAt(iso);
+  if (!text) {
+    node.hidden = true;
+    node.textContent = "";
+    return;
+  }
+  node.hidden = false;
+  node.textContent = `数据更新：${text}`;
+  node.title = iso;
+}
+
 function setStatus(msg, kind = "error") {
   const s = el("status");
   if (!msg) {
@@ -108,6 +140,7 @@ function showGate(show) {
     const { repo, token } = readCreds();
     el("setup-repo").value = repo || DEFAULT_REPO;
     el("setup-token").value = token || "";
+    setDataUpdated("");
   }
 }
 
@@ -532,6 +565,7 @@ async function loadArticles() {
   }
   state.loaded = true;
   state.collapsed.clear();
+  setDataUpdated(data.updatedAt);
   renderJournalList();
   buildTagBar(state.articles);
   el("workspace").hidden = false;
@@ -623,6 +657,7 @@ function init() {
     clearCreds();
     state.articles = [];
     state.loaded = false;
+    setDataUpdated("");
     el("settings-dialog").close();
     setStatus("");
     showGate(true);
