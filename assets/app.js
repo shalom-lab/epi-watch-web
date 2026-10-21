@@ -318,6 +318,39 @@ function setStatus(msg, kind = "error") {
   s.textContent = msg;
 }
 
+let toastTimer = null;
+function showToast(msg, kind = "info", ms = 2200) {
+  const t = el("toast");
+  if (!t) return;
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+  if (!msg) {
+    t.classList.remove("show", "ok", "err");
+    t.hidden = true;
+    t.textContent = "";
+    return;
+  }
+  t.hidden = false;
+  t.textContent = msg;
+  t.className = "toast" + (kind === "ok" ? " ok" : kind === "err" ? " err" : "");
+  // reflow so transition runs when re-showing
+  void t.offsetWidth;
+  t.classList.add("show");
+  if (ms > 0) {
+    toastTimer = setTimeout(() => {
+      t.classList.remove("show");
+      toastTimer = setTimeout(() => {
+        t.hidden = true;
+        t.textContent = "";
+        t.className = "toast";
+        toastTimer = null;
+      }, 200);
+    }, ms);
+  }
+}
+
 function showGate(show) {
   el("gate").hidden = !show;
   el("workspace").hidden = show || !state.loaded;
@@ -844,7 +877,7 @@ function wireListClicks() {
       const id = starBtn.dataset.star;
       const card = starBtn.closest(".card");
       starBtn.disabled = true;
-      setStatus("正在同步精选到 GitHub…", "info");
+      showToast("正在同步精选到 GitHub…", "info", 0);
       toggleStar(id)
         .then(() => {
           const on = state.starred.has(String(id));
@@ -852,7 +885,7 @@ function wireListClicks() {
           starBtn.setAttribute("aria-pressed", on ? "true" : "false");
           starBtn.title = on ? "取消精选" : "精选";
           card?.classList.toggle("starred", on);
-          setStatus("");
+          showToast(on ? "已加入精选" : "已取消精选", "ok", 1800);
           if (state.onlyStarred) renderList();
           else refreshFacetCounts();
         })
@@ -860,7 +893,7 @@ function wireListClicks() {
           const on = state.starred.has(String(id));
           starBtn.classList.toggle("on", on);
           card?.classList.toggle("starred", on);
-          setStatus(err.message || String(err));
+          showToast(err.message || String(err), "err", 4200);
         })
         .finally(() => {
           starBtn.disabled = false;
