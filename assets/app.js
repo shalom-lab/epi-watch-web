@@ -242,6 +242,8 @@ function syncAllCheckbox() {
 }
 
 function renderJournalList() {
+  const jCounts = journalCountsForFacets();
+  for (const j of state.journals) j.count = jCounts.get(j.id) || 0;
   const totalEl = el("journal-total");
   if (totalEl) {
     const n = state.journals.length;
@@ -280,11 +282,13 @@ function renderJournalList() {
   syncAllCheckbox();
 }
 
-function buildTagBar(articles) {
-  const counts = new Map();
-  for (const a of articles) {
-    for (const t of a.tags || []) counts.set(t, (counts.get(t) || 0) + 1);
+function buildTagBar() {
+  // Seed chips from full library so tags stay available; counts refresh with facets.
+  const seed = new Map();
+  for (const a of state.articles) {
+    for (const t of a.tags || []) seed.set(t, true);
   }
+  const counts = tagCountsForFacets();
   const bar = el("tag-bar");
   bar.innerHTML = "";
   const clear = document.createElement("button");
@@ -297,7 +301,7 @@ function buildTagBar(articles) {
     renderList();
   });
   bar.appendChild(clear);
-  for (const id of [...counts.keys()].sort()) {
+  for (const id of [...seed.keys()].sort()) {
     const meta = TAG_META[id] || { label: id, color: "#e2e8f0", ink: "#334155" };
     const btn = document.createElement("button");
     btn.type = "button";
@@ -305,7 +309,9 @@ function buildTagBar(articles) {
     btn.style.background = meta.color;
     btn.style.color = meta.ink;
     btn.dataset.tag = id;
-    btn.textContent = `${meta.label} ${counts.get(id)}`;
+    const n = counts.get(id) || 0;
+    btn.textContent = `${meta.label} ${n}`;
+    btn.hidden = n === 0 && !state.selectedTags.has(id);
     btn.addEventListener("click", () => {
       if (state.selectedTags.has(id)) state.selectedTags.delete(id);
       else state.selectedTags.add(id);
@@ -394,42 +400,114 @@ function markDateCustomIfNeeded() {
   for (const btn of bar.querySelectorAll(".date-chip")) btn.classList.remove("on");
 }
 
-function filteredArticles() {
-  const minScore = Number(el("filter-score").value);
-  const q = (el("filter-q")?.value || "").trim().toLowerCase();
-  const dateFrom = (el("date-from")?.value || "").trim();
-  const dateTo = (el("date-to")?.value || "").trim();
-  let list = state.articles.filter((a) => (a.relevanceScore ?? 0) >= minScore);
-  if (state.selectedJournals.size === 0) list = [];
-  else if (state.selectedJournals.size < state.journals.length) {
-    list = list.filter((a) => state.selectedJournals.has(a.journalId));
-  }
-  if (state.selectedTags.size) {
-    list = list.filter((a) => (a.tags || []).some((t) => state.selectedTags.has(t)));
-  }
+function readFilterControls() {
+  return {
+    minScore: Number(el("filter-score")?.value || 0),
+    q: (el("filter-q")?.value || "").trim().toLowerCase(),
+    dateFrom: (el("date-from")?.value || "").trim(),
+    dateTo: (el("date-to")?.value || "").trim(),
+  };
+}
+
+function matchScoreDateQuery(a, { minScore, q, dateFrom, dateTo } = readFilterControls()) {
+  if ((a.relevanceScore ?? 0) < minScore) return false;
   if (dateFrom || dateTo) {
-    list = list.filter((a) => {
-      const d = articleDate(a);
-      if (!d) return false;
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo && d > dateTo) return false;
-      return true;
-    });
+    const d = articleDate(a);
+    if (!d) return false;
+    if (dateFrom && d < dateFrom) return false;
+    if (dateTo && d > dateTo) return false;
   }
   if (q) {
-    list = list.filter((a) => {
-      const blob = [a.title, a.highlight, a.brief, a.doi, a.id, a.reason, ...asList(a.learnPoints), ...asList(a.statisticalMethods)]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
-    });
+    const blob = [a.title, a.highlight, a.brief, a.doi, a.id, a.reason, ...asList(a.learnPoints), ...asList(a.statisticalMethods)]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (!blob.includes(q)) return false;
   }
+  return true;
+}
+
+function matchJournals(a, journals = state.selectedJournals) {
+  if (!journals || journals.size === 0) return false;
+  if (journals.size >= state.journals.length) return true;
+  return journals.has(a.journalId);
+}
+
+function matchTags(a, tags = state.selectedTags) {
+  if (!tags || !tags.size) return true;
+  return (a.tags || []).some((t) => tags.has(t));
+}
+
+/** @param {{ journals?: boolean, tags?: boolean, sort?: boolean }} opts */
+function filterArticles(opts = {}) {
+  const applyJournals = opts.journals !== false;
+  const applyTags = opts.tags !== false;
+  const doSort = opts.sort !== false;
+  const ctrl = readFilterControls();
+  let list = state.articles.filter((a) => matchScoreDateQuery(a, ctrl));
+  if (applyJournals) list = list.filter((a) => matchJournals(a));
+  if (applyTags) list = list.filter((a) => matchTags(a));
+  if (!doSort) return list;
   return list.sort((a, b) => {
     const ds = (b.relevanceScore || 0) - (a.relevanceScore || 0);
     if (ds) return ds;
     return String(b.publishedAt || "").localeCompare(String(a.publishedAt || ""));
   });
+}
+
+function filteredArticles() {
+  return filterArticles({ journals: true, tags: true, sort: true });
+}
+
+function journalCountsForFacets() {
+  // Score/date/search/tags applied; journal checkbox ignored (facet counts).
+  const list = filterArticles({ journals: false, tags: true, sort: false });
+  const counts = new Map();
+  for (const a of list) {
+    const id = a.journalId || "unknown";
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  return counts;
+}
+
+function tagCountsForFacets() {
+  // Score/date/search/journals applied; tag selection ignored (facet counts).
+  const list = filterArticles({ journals: true, tags: false, sort: false });
+  const counts = new Map();
+  for (const a of list) {
+    for (const t of a.tags || []) counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  return counts;
+}
+
+function refreshFacetCounts() {
+  const jCounts = journalCountsForFacets();
+  for (const j of state.journals) j.count = jCounts.get(j.id) || 0;
+
+  // Update visible journal row badges + header without full re-render if possible.
+  const totalEl = el("journal-total");
+  if (totalEl) {
+    const n = state.journals.length;
+    const arts = state.journals.reduce((s, j) => s + (j.count || 0), 0);
+    totalEl.textContent = n ? `（${n} 刊 · ${arts} 篇）` : "";
+  }
+  for (const row of el("journal-list")?.querySelectorAll(".journal-item-row") || []) {
+    const input = row.querySelector("input[data-journal]");
+    const badge = row.querySelector(".j-count");
+    if (!input || !badge) continue;
+    badge.textContent = String(jCounts.get(input.dataset.journal) || 0);
+  }
+
+  const tCounts = tagCountsForFacets();
+  const bar = el("tag-bar");
+  if (!bar) return;
+  for (const btn of bar.querySelectorAll(".chip[data-tag]")) {
+    const id = btn.dataset.tag;
+    const meta = TAG_META[id] || { label: id };
+    const n = tCounts.get(id) || 0;
+    btn.textContent = `${meta.label} ${n}`;
+    btn.hidden = n === 0 && !state.selectedTags.has(id);
+  }
 }
 
 function pill(tag) {
@@ -527,11 +605,15 @@ function updateJournalInViewHighlights() {
 }
 
 function renderList() {
+  refreshFacetCounts();
   const list = filteredArticles();
-  el("count").textContent = `${list.length} / ${state.articles.length}`;
+  // Denominator: same filters except tags (so journal-only view matches sidebar).
+  const scoped = filterArticles({ journals: true, tags: false, sort: false });
+  el("count").textContent = `${list.length} / ${scoped.length}`;
   const root = el("list");
   if (!list.length) {
     root.innerHTML = `<div class="empty">没有匹配的文章</div>`;
+    updateJournalInViewHighlights();
     return;
   }
   root.innerHTML = list.map(cardHtml).join("");
@@ -650,7 +732,7 @@ async function loadArticles() {
   state.collapsed.clear();
   setDataUpdated(data.updatedAt);
   renderJournalList();
-  buildTagBar(state.articles);
+  buildTagBar();
   el("workspace").hidden = false;
   el("btn-refresh").hidden = false;
   const topSearch = el("top-search");
