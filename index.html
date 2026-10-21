@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Epi 期刊嗅探</title>
   <meta name="description" content="流行病学 / 传染病建模文献嗅探 · BYOK" />
-  <link rel="stylesheet" href="assets/styles.css?v=39" />
+  <link rel="stylesheet" href="assets/styles.css?v=40" />
   <link rel="icon" href="assets/favicon.svg?v=35" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/favicon.svg?v=35" />
 </head>
@@ -18,6 +18,9 @@
           <h1>Epi 期刊嗅探</h1>
           <p class="data-updated" id="data-updated" hidden></p>
         </div>
+      </div>
+      <div class="top-search" id="top-search" hidden>
+        <input id="filter-q" type="search" placeholder="搜索标题 / 亮点 / DOI" autocomplete="off" />
       </div>
       <div class="top-actions">
         <button type="button" id="btn-refresh" class="btn ghost" title="重新拉取" hidden>刷新</button>
@@ -73,9 +76,23 @@
                 <option value="0">全部</option>
               </select>
             </label>
-            <label class="inline grow">搜索
-              <input id="filter-q" type="search" placeholder="标题 / 亮点 / DOI" />
-            </label>
+            <div class="date-filter inline grow">
+              <span>发表日期</span>
+              <div class="date-controls">
+                <div class="date-presets" id="date-presets" role="group" aria-label="日期快捷">
+                  <button type="button" class="date-chip" data-preset="7d">近1周</button>
+                  <button type="button" class="date-chip" data-preset="1m">1月</button>
+                  <button type="button" class="date-chip" data-preset="3m">近3月</button>
+                  <button type="button" class="date-chip" data-preset="1y">1年</button>
+                  <button type="button" class="date-chip on" data-preset="all">全部</button>
+                </div>
+                <div class="date-range">
+                  <input type="date" id="date-from" aria-label="起始日期" />
+                  <span class="date-sep">—</span>
+                  <input type="date" id="date-to" aria-label="结束日期" />
+                </div>
+              </div>
+            </div>
             <span id="count" class="count"></span>
           </div>
           <div id="tag-bar" class="tag-bar" aria-label="按标签筛选"></div>
@@ -113,6 +130,6 @@
       <span>密钥仅存本机</span>
     </footer>
   </div>
-  <script src="assets/app.js?v=39" type="module"></script>
+  <script src="assets/app.js?v=40" type="module"></script>
 </body>
 </html>

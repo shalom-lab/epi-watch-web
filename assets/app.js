@@ -136,6 +136,8 @@ function showGate(show) {
   el("gate").hidden = !show;
   el("workspace").hidden = show || !state.loaded;
   el("btn-refresh").hidden = show || !state.loaded;
+  const topSearch = el("top-search");
+  if (topSearch) topSearch.hidden = show || !state.loaded;
   if (show) {
     const { repo, token } = readCreds();
     el("setup-repo").value = repo || DEFAULT_REPO;
@@ -322,9 +324,81 @@ function renderFiltersChrome() {
   if (clear) clear.classList.toggle("active", state.selectedTags.size > 0);
 }
 
+
+function todayYmdShanghai() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
+}
+
+function shiftDays(ymd, days) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+function shiftMonths(ymd, months) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCMonth(dt.getUTCMonth() + months);
+  return dt.toISOString().slice(0, 10);
+}
+
+function articleDate(a) {
+  const raw = String(a.publishedAt || "").trim();
+  if (!raw) return "";
+  // keep YYYY-MM-DD prefix
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : raw.slice(0, 10);
+}
+
+function setDatePresetActive(preset) {
+  const bar = el("date-presets");
+  if (!bar) return;
+  for (const btn of bar.querySelectorAll(".date-chip")) {
+    btn.classList.toggle("on", btn.dataset.preset === preset);
+  }
+}
+
+function applyDatePreset(preset, { render = true } = {}) {
+  const fromEl = el("date-from");
+  const toEl = el("date-to");
+  if (!fromEl || !toEl) return;
+  const today = todayYmdShanghai();
+  if (preset === "all") {
+    fromEl.value = "";
+    toEl.value = "";
+    setDatePresetActive("all");
+  } else if (preset === "7d") {
+    fromEl.value = shiftDays(today, -7);
+    toEl.value = today;
+    setDatePresetActive("7d");
+  } else if (preset === "1m") {
+    fromEl.value = shiftMonths(today, -1);
+    toEl.value = today;
+    setDatePresetActive("1m");
+  } else if (preset === "3m") {
+    fromEl.value = shiftMonths(today, -3);
+    toEl.value = today;
+    setDatePresetActive("3m");
+  } else if (preset === "1y") {
+    fromEl.value = shiftMonths(today, -12);
+    toEl.value = today;
+    setDatePresetActive("1y");
+  }
+  if (render) renderList();
+}
+
+function markDateCustomIfNeeded() {
+  const bar = el("date-presets");
+  if (!bar) return;
+  for (const btn of bar.querySelectorAll(".date-chip")) btn.classList.remove("on");
+}
+
 function filteredArticles() {
   const minScore = Number(el("filter-score").value);
-  const q = el("filter-q").value.trim().toLowerCase();
+  const q = (el("filter-q")?.value || "").trim().toLowerCase();
+  const dateFrom = (el("date-from")?.value || "").trim();
+  const dateTo = (el("date-to")?.value || "").trim();
   let list = state.articles.filter((a) => (a.relevanceScore ?? 0) >= minScore);
   if (state.selectedJournals.size === 0) list = [];
   else if (state.selectedJournals.size < state.journals.length) {
@@ -332,6 +406,15 @@ function filteredArticles() {
   }
   if (state.selectedTags.size) {
     list = list.filter((a) => (a.tags || []).some((t) => state.selectedTags.has(t)));
+  }
+  if (dateFrom || dateTo) {
+    list = list.filter((a) => {
+      const d = articleDate(a);
+      if (!d) return false;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    });
   }
   if (q) {
     list = list.filter((a) => {
@@ -570,6 +653,8 @@ async function loadArticles() {
   buildTagBar(state.articles);
   el("workspace").hidden = false;
   el("btn-refresh").hidden = false;
+  const topSearch = el("top-search");
+  if (topSearch) topSearch.hidden = false;
   renderList();
   setStatus("");
 }
@@ -664,8 +749,27 @@ function init() {
   });
 
   for (const id of ["filter-score", "filter-q"]) {
-    el(id).addEventListener("input", renderList);
-    el(id).addEventListener("change", renderList);
+    const node = el(id);
+    if (!node) continue;
+    node.addEventListener("input", renderList);
+    node.addEventListener("change", renderList);
+  }
+
+  const presets = el("date-presets");
+  if (presets) {
+    presets.addEventListener("click", (e) => {
+      const btn = e.target.closest(".date-chip");
+      if (!btn) return;
+      applyDatePreset(btn.dataset.preset);
+    });
+  }
+  for (const id of ["date-from", "date-to"]) {
+    const node = el(id);
+    if (!node) continue;
+    node.addEventListener("change", () => {
+      markDateCustomIfNeeded();
+      renderList();
+    });
   }
 
   if (!hasCreds()) {
