@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Epi 期刊嗅探</title>
   <meta name="description" content="流行病学 / 传染病建模文献嗅探 · BYOK" />
-  <link rel="stylesheet" href="assets/styles.css?v=42" />
+  <link rel="stylesheet" href="assets/styles.css?v=43" />
   <link rel="icon" href="assets/favicon.svg?v=35" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/favicon.svg?v=35" />
 </head>
@@ -93,6 +93,10 @@
                 </div>
               </div>
             </div>
+            <label class="star-filter" title="只看本机精选">
+              <input type="checkbox" id="filter-starred" />
+              <span>仅精选</span>
+            </label>
             <span id="count" class="count"></span>
           </div>
           <div id="tag-bar" class="tag-bar" aria-label="按标签筛选"></div>
@@ -115,6 +119,12 @@
             <button type="button" class="btn ghost mini" id="toggle-set-token">显示</button>
           </div>
         </label>
+        <p class="hint">精选星标存在本机（localStorage，与 token 分开），可导出/导入 JSON。</p>
+        <div class="row" style="margin-bottom:10px">
+          <button type="button" class="btn ghost" id="btn-export-stars">导出精选</button>
+          <button type="button" class="btn ghost" id="btn-import-stars">导入精选</button>
+          <input type="file" id="import-stars-file" accept="application/json,.json" hidden />
+        </div>
         <div class="row dialog-actions">
           <button type="button" class="btn danger" id="btn-clear" value="clear">清除本地密钥</button>
           <div class="spacer"></div>
@@ -130,6 +140,6 @@
       <span>密钥仅存本机</span>
     </footer>
   </div>
-  <script src="assets/app.js?v=42" type="module"></script>
+  <script src="assets/app.js?v=43" type="module"></script>
 </body>
 </html>

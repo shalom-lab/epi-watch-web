@@ -1,6 +1,10 @@
 const LS_REPO = "gh-repo";
 const LS_TOKEN = "gh-token";
+const LS_STARRED = "epi-starred-ids"; // local featured ids; separate from GitHub token
 const DEFAULT_REPO = "shalom-lab/epi-watch";
+
+const ICON_COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V7a2 2 0 0 1 2-2h8"/></svg>`;
+const ICON_STAR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 7.2 18.5l.9-5.4-3.9-3.8 5.4-.8L12 3.6z"/></svg>`;
 
 const TAG_META = {
   epidemiology: { label: "流行病学方法", color: "#dbeafe", ink: "#1e40af" },
@@ -65,6 +69,8 @@ const state = {
   journalQuery: "",
   selectedJournals: new Set(), // empty = none; all ids = all selected
   selectedTags: new Set(),
+  starred: new Set(), // article ids, persisted in localStorage
+  onlyStarred: false,
   loaded: false,
   collapsed: new Set(),
 };
@@ -87,6 +93,102 @@ function hasCreds() {
   const { repo, token } = readCreds();
   return Boolean(repo && token);
 }
+
+function loadStarred() {
+  try {
+    const raw = localStorage.getItem(LS_STARRED);
+    if (!raw) {
+      state.starred = new Set();
+      return;
+    }
+    const data = JSON.parse(raw);
+    const ids = Array.isArray(data) ? data : (data && Array.isArray(data.ids) ? data.ids : []);
+    state.starred = new Set(ids.map(String).filter(Boolean));
+  } catch {
+    state.starred = new Set();
+  }
+}
+
+function saveStarred() {
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    ids: [...state.starred],
+  };
+  localStorage.setItem(LS_STARRED, JSON.stringify(payload));
+}
+
+function toggleStar(id) {
+  const key = String(id);
+  if (state.starred.has(key)) state.starred.delete(key);
+  else state.starred.add(key);
+  saveStarred();
+}
+
+function articleById(id) {
+  return state.articles.find((a) => a.id === id);
+}
+
+function cardCopyText(a) {
+  const lines = [];
+  lines.push(a.title || "(无标题)");
+  lines.push("");
+  if (a.journalName || a.journalId) lines.push(`期刊：${a.journalName || a.journalId}`);
+  if (a.publishedAt) lines.push(`日期：${a.publishedAt}`);
+  if (a.relevanceScore != null) lines.push(`相关度：${a.relevanceScore}`);
+  if (a.firstAuthor) lines.push(`一作：${a.firstAuthor}`);
+  if (a.correspondingAuthor) lines.push(`通讯：${a.correspondingAuthor}`);
+  if (a.authors) lines.push(`作者：${a.authors}`);
+  const tags = (a.tags || []).map((t) => (TAG_META[t] && TAG_META[t].label) || t);
+  if (tags.length) lines.push(`标签：${tags.join("、")}`);
+  const ctx = [a.exposure, a.outcome, a.population, a.site].map((x) => String(x || "").trim()).filter(Boolean);
+  if (ctx.length) lines.push(`情境：${ctx.join(" · ")}`);
+  const methods = asList(a.statisticalMethods);
+  if (methods.length) lines.push(`统计方法：${methods.join("、")}`);
+  if (a.highlight) {
+    lines.push("");
+    lines.push(`亮点：${a.highlight}`);
+  }
+  if (a.brief) {
+    lines.push("");
+    lines.push(`摘要：${a.brief}`);
+  }
+  const points = asList(a.learnPoints);
+  if (points.length) {
+    lines.push("");
+    lines.push("要点：");
+    for (const p of points) lines.push(`- ${p}`);
+  }
+  lines.push("");
+  if (a.url) lines.push(`原文：${a.url}`);
+  const pubmed = a.pubmedUrl || (a.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${a.pmid}/` : "");
+  if (pubmed) lines.push(`PubMed：${pubmed}`);
+  if (a.doi) lines.push(`DOI：${a.doi}`);
+  else if (a.id) lines.push(`ID：${a.id}`);
+  return lines.join("\n");
+}
+
+async function copyCard(a, btn) {
+  const text = cardCopyText(a);
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+  if (btn) {
+    btn.classList.add("copied");
+    btn.title = "已复制";
+    setTimeout(() => {
+      btn.classList.remove("copied");
+      btn.title = "复制卡片信息";
+    }, 1200);
+  }
+}
+
 
 
 function formatUpdatedAt(iso) {
@@ -462,6 +564,7 @@ function filterArticles(opts = {}) {
   let list = state.articles.filter((a) => matchScoreDateQuery(a, ctrl));
   if (applyJournals) list = list.filter((a) => matchJournals(a));
   if (applyTags) list = list.filter((a) => matchTags(a));
+  if (state.onlyStarred) list = list.filter((a) => state.starred.has(String(a.id)));
   if (!doSort) return list;
   return list.sort((a, b) => {
     const ds = (b.relevanceScore || 0) - (a.relevanceScore || 0);
@@ -582,8 +685,9 @@ function cardHtml(a) {
     .map((m) => `<span class="method-chip">${esc(m)}</span>`)
     .join("");
 
+  const starred = state.starred.has(String(a.id));
   return `
-  <article class="card" data-id="${esc(a.id)}">
+  <article class="card${starred ? " starred" : ""}" data-id="${esc(a.id)}">
     <h3><a href="${esc(a.url || (a.doi ? "https://doi.org/" + a.doi : "#"))}" target="_blank" rel="noopener">${esc(a.title || "(无标题)")}</a></h3>
     <div class="meta">
       <span>${esc(a.journalName || a.journalId || "")}</span>
@@ -598,6 +702,10 @@ function cardHtml(a) {
     ${a.highlight ? `<div class="highlight"><p>${esc(a.highlight)}</p></div>` : ""}
     <div class="links">
       ${links.join("")}
+      <span class="icon-btns">
+        <button type="button" class="icon-btn copy" data-copy="${esc(a.id)}" title="复制卡片信息" aria-label="复制">${ICON_COPY}</button>
+        <button type="button" class="icon-btn star${starred ? " on" : ""}" data-star="${esc(a.id)}" title="${starred ? "取消精选" : "精选"}" aria-label="精选" aria-pressed="${starred ? "true" : "false"}">${ICON_STAR}</button>
+      </span>
       <button type="button" class="expand" data-toggle>${collapsed ? "展开" : "收起"}</button>
     </div>
     <div class="detail${collapsed ? " collapsed" : ""}">
@@ -637,6 +745,28 @@ function renderList() {
 
 function wireListClicks() {
   el("list").addEventListener("click", (e) => {
+    const copyBtn = e.target.closest("[data-copy]");
+    if (copyBtn) {
+      e.preventDefault();
+      const id = copyBtn.dataset.copy;
+      const a = articleById(id);
+      if (a) copyCard(a, copyBtn);
+      return;
+    }
+    const starBtn = e.target.closest("[data-star]");
+    if (starBtn) {
+      e.preventDefault();
+      const id = starBtn.dataset.star;
+      toggleStar(id);
+      const on = state.starred.has(String(id));
+      starBtn.classList.toggle("on", on);
+      starBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      starBtn.title = on ? "取消精选" : "精选";
+      starBtn.closest(".card")?.classList.toggle("starred", on);
+      if (state.onlyStarred) renderList();
+      else refreshFacetCounts();
+      return;
+    }
     const btn = e.target.closest("[data-toggle]");
     if (!btn) return;
     const card = btn.closest(".card");
@@ -773,6 +903,7 @@ function bindToggle(btnId, inputId) {
 }
 
 function init() {
+  loadStarred();
   bindToggle("toggle-setup-token", "setup-token");
   bindToggle("toggle-set-token", "set-token");
   wireListClicks();
@@ -851,6 +982,45 @@ function init() {
     node.addEventListener("input", renderList);
     node.addEventListener("change", renderList);
   }
+  const starFilter = el("filter-starred");
+  if (starFilter) {
+    starFilter.checked = !!state.onlyStarred;
+    starFilter.addEventListener("change", () => {
+      state.onlyStarred = starFilter.checked;
+      renderList();
+    });
+  }
+
+  el("btn-export-stars")?.addEventListener("click", () => {
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      ids: [...state.starred],
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "epi-starred-ids.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  el("btn-import-stars")?.addEventListener("click", () => el("import-stars-file")?.click());
+  el("import-stars-file")?.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const ids = Array.isArray(data) ? data : (data && Array.isArray(data.ids) ? data.ids : []);
+      state.starred = new Set(ids.map(String).filter(Boolean));
+      saveStarred();
+      renderList();
+      alert(`已导入精选 ${state.starred.size} 条`);
+    } catch (err) {
+      alert("导入失败：" + (err.message || String(err)));
+    }
+  });
 
   const presets = el("date-presets");
   if (presets) {
