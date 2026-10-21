@@ -1,7 +1,7 @@
 const LS_REPO = "gh-repo";
 const LS_TOKEN = "gh-token";
-const LS_STARRED = "epi-starred-ids"; // local featured ids; separate from GitHub token
 const DEFAULT_REPO = "shalom-lab/epi-watch";
+const FAVORITE_PATH = "data/article_favorite.json";
 
 const ICON_COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V7a2 2 0 0 1 2-2h8"/></svg>`;
 const ICON_STAR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 7.2 18.5l.9-5.4-3.9-3.8 5.4-.8L12 3.6z"/></svg>`;
@@ -69,7 +69,9 @@ const state = {
   journalQuery: "",
   selectedJournals: new Set(), // empty = none; all ids = all selected
   selectedTags: new Set(),
-  starred: new Set(), // article ids, persisted in localStorage
+  starred: new Set(), // article ids from data/article_favorite.json
+  favoriteSha: null, // GitHub contents SHA for optimistic PUT
+  starBusy: false,
   onlyStarred: false,
   loaded: false,
   collapsed: new Set(),
@@ -94,34 +96,116 @@ function hasCreds() {
   return Boolean(repo && token);
 }
 
-function loadStarred() {
+function favoritePayload() {
+  return {
+    schemaVersion: 1,
+    updatedAt: new Date().toISOString(),
+    ids: [...state.starred].sort(),
+  };
+}
+
+function utf8ToBase64(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+function base64ToUtf8(b64) {
+  const bin = atob(String(b64 || "").replace(/\n/g, ""));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+async function fetchRepoFileMeta(path) {
+  const { repo, token } = readCreds();
+  const url = `https://api.github.com/repos/${repo}/contents/${path}`;
+  const res = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+  if (res.status === 404) return null;
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Token 无效或权限不足（精选需要 Contents: Read/Write）。");
+  }
+  if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+  return res.json();
+}
+
+async function loadFavorites() {
   try {
-    const raw = localStorage.getItem(LS_STARRED);
-    if (!raw) {
+    const meta = await fetchRepoFileMeta(FAVORITE_PATH);
+    if (!meta) {
       state.starred = new Set();
+      state.favoriteSha = null;
       return;
     }
-    const data = JSON.parse(raw);
-    const ids = Array.isArray(data) ? data : (data && Array.isArray(data.ids) ? data.ids : []);
+    state.favoriteSha = meta.sha || null;
+    const data = JSON.parse(base64ToUtf8(meta.content));
+    const ids = Array.isArray(data?.ids) ? data.ids : (Array.isArray(data) ? data : []);
     state.starred = new Set(ids.map(String).filter(Boolean));
-  } catch {
+  } catch (err) {
+    console.warn("article_favorite.json", err);
     state.starred = new Set();
+    state.favoriteSha = null;
+    throw err;
   }
 }
 
-function saveStarred() {
-  const payload = {
-    updatedAt: new Date().toISOString(),
-    ids: [...state.starred],
+async function saveFavoritesToGithub() {
+  const { repo, token } = readCreds();
+  const body = {
+    message: `chore: update favorites (${state.starred.size})`,
+    content: utf8ToBase64(JSON.stringify(favoritePayload(), null, 2) + "\n"),
   };
-  localStorage.setItem(LS_STARRED, JSON.stringify(payload));
+  if (state.favoriteSha) body.sha = state.favoriteSha;
+  const url = `https://api.github.com/repos/${repo}/contents/${FAVORITE_PATH}`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Token 无写权限：请给该仓 Contents: Write，才能同步精选。");
+  }
+  if (res.status === 409) {
+    // conflict — reload sha and retry once
+    await loadFavorites();
+    throw new Error("精选文件有冲突，已重新拉取，请再点一次星标。");
+  }
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`写入精选失败 GitHub ${res.status}${t ? ": " + t.slice(0, 160) : ""}`);
+  }
+  const out = await res.json();
+  state.favoriteSha = out.content?.sha || state.favoriteSha;
 }
 
-function toggleStar(id) {
+async function toggleStar(id) {
+  if (state.starBusy) return;
   const key = String(id);
+  const prev = new Set(state.starred);
+  const prevSha = state.favoriteSha;
   if (state.starred.has(key)) state.starred.delete(key);
   else state.starred.add(key);
-  saveStarred();
+  state.starBusy = true;
+  try {
+    await saveFavoritesToGithub();
+  } catch (err) {
+    state.starred = prev;
+    state.favoriteSha = prevSha;
+    throw err;
+  } finally {
+    state.starBusy = false;
+  }
 }
 
 function articleById(id) {
@@ -756,15 +840,31 @@ function wireListClicks() {
     const starBtn = e.target.closest("[data-star]");
     if (starBtn) {
       e.preventDefault();
+      if (state.starBusy || starBtn.disabled) return;
       const id = starBtn.dataset.star;
-      toggleStar(id);
-      const on = state.starred.has(String(id));
-      starBtn.classList.toggle("on", on);
-      starBtn.setAttribute("aria-pressed", on ? "true" : "false");
-      starBtn.title = on ? "取消精选" : "精选";
-      starBtn.closest(".card")?.classList.toggle("starred", on);
-      if (state.onlyStarred) renderList();
-      else refreshFacetCounts();
+      const card = starBtn.closest(".card");
+      starBtn.disabled = true;
+      setStatus("正在同步精选到 GitHub…", "info");
+      toggleStar(id)
+        .then(() => {
+          const on = state.starred.has(String(id));
+          starBtn.classList.toggle("on", on);
+          starBtn.setAttribute("aria-pressed", on ? "true" : "false");
+          starBtn.title = on ? "取消精选" : "精选";
+          card?.classList.toggle("starred", on);
+          setStatus("");
+          if (state.onlyStarred) renderList();
+          else refreshFacetCounts();
+        })
+        .catch((err) => {
+          const on = state.starred.has(String(id));
+          starBtn.classList.toggle("on", on);
+          card?.classList.toggle("starred", on);
+          setStatus(err.message || String(err));
+        })
+        .finally(() => {
+          starBtn.disabled = false;
+        });
       return;
     }
     const btn = e.target.closest("[data-toggle]");
@@ -860,6 +960,14 @@ async function loadJournalMeta() {
 async function loadArticles() {
   setStatus("正在从 GitHub 拉取…", "info");
   await loadJournalMeta();
+  try {
+    await loadFavorites();
+  } catch (err) {
+    // Favorites optional on first paint if file missing; hard errors still surface.
+    if (!String(err.message || "").includes("找不到") && !String(err.message || err).includes("404")) {
+      console.warn(err);
+    }
+  }
   const data = await fetchRepoFile("data/articles.json");
   state.articles = (Array.isArray(data.articles) ? data.articles : []).map(normalizeArticle);
   const prev = new Set(state.selectedJournals);
@@ -903,7 +1011,6 @@ function bindToggle(btnId, inputId) {
 }
 
 function init() {
-  loadStarred();
   bindToggle("toggle-setup-token", "setup-token");
   bindToggle("toggle-set-token", "set-token");
   wireListClicks();
@@ -991,36 +1098,7 @@ function init() {
     });
   }
 
-  el("btn-export-stars")?.addEventListener("click", () => {
-    const payload = {
-      updatedAt: new Date().toISOString(),
-      ids: [...state.starred],
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "epi-starred-ids.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-  el("btn-import-stars")?.addEventListener("click", () => el("import-stars-file")?.click());
-  el("import-stars-file")?.addEventListener("change", async (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      const ids = Array.isArray(data) ? data : (data && Array.isArray(data.ids) ? data.ids : []);
-      state.starred = new Set(ids.map(String).filter(Boolean));
-      saveStarred();
-      renderList();
-      alert(`已导入精选 ${state.starred.size} 条`);
-    } catch (err) {
-      alert("导入失败：" + (err.message || String(err)));
-    }
-  });
+
 
   const presets = el("date-presets");
   if (presets) {
