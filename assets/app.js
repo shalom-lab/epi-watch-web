@@ -418,7 +418,22 @@ function matchScoreDateQuery(a, { minScore, q, dateFrom, dateTo } = readFilterCo
     if (dateTo && d > dateTo) return false;
   }
   if (q) {
-    const blob = [a.title, a.highlight, a.brief, a.doi, a.id, a.reason, ...asList(a.learnPoints), ...asList(a.statisticalMethods)]
+    const blob = [
+      a.title,
+      a.highlight,
+      a.brief,
+      a.doi,
+      a.id,
+      a.pmid,
+      a.reason,
+      a.journalName,
+      a.journalId,
+      a.firstAuthor,
+      a.correspondingAuthor,
+      a.authors,
+      ...asList(a.learnPoints),
+      ...asList(a.statisticalMethods),
+    ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
